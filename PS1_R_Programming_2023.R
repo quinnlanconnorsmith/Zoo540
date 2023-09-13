@@ -47,6 +47,8 @@ matrix_2
 
 #3. Convert the values of your matrix to double.
 matrix_2*2
+#Tony meant double precision here, not 2x 
+#Convert to numeric
 
 #4. Create a data.frame named "df" with a column named "site" containing values 1:5 as factors and a column named "value" containing values 100, 200, ..., 500. Then give it row.names "a", ..., "e".
 df <- data.frame(site = 1:5, value = c(100,200,300,400,500))
