@@ -266,25 +266,92 @@ dd.ROUTE <- d %>%
 #################################################################
 # The tasks requested below could/should be done as in the previous questions. Here, I'm using the same tasks to illustrate the basics of control structures. The basic structures I'm illustrating are very common, and you will see them repeatedly throughout the course. This also shows that you can pretty much do anything with loops, which isn't surprising given that the computer code underlying functions like group_by() and aggregate() uses loops.
 
+#Note that the below code is ROUTE.num and NOT num.ROUTE
+
 #21. Create a data.frame called d.ROUTE that contains the mean value of GROUSE for each ROUTE using a for loop (i.e., group_by() and aggregate() aren't allowed). This involves first creating a data.frame and then looping through the values of ROUTE to fill in values. I've given you the first line creating the data.frame
-d.ROUTE <- data.frame(ROUTE = unique(d$num.ROUTE))
+d.ROUTE <- data.frame(ROUTE = unique(d$ROUTE.num))
+
+for(i.ROUTE in unique(d$ROUTE.num)){
+  d.ROUTE$GROUSE[d.ROUTE$ROUTE == i.ROUTE] <- mean(d$GROUSE[d$ROUTE.num == i.ROUTE])
+}
+
 
 #22. Create a data.frame called d.ROUTE that contains the mean value of GROUSE for each ROUTE using a while loop (i.e., group_by() and aggregate() aren't allowed). 
-d.ROUTE <- data.frame(ROUTE = unique(d$num.ROUTE))
+d.ROUTE <- data.frame(ROUTE = unique(d$ROUTE.num))
+
+#This codes takes a million years to run, I'm not sure why so I've commented it. 
+#x <- 1
+#while(x <= nrow(d.ROUTE)){
+#  d.ROUTE$GROUSE[x] <- mean(d$GROUSE[d$ROUTE.num == d.ROUTE$ROUTE[x]])
+#}
+
+#Trying Tony's answer
+i <- 0
+while(i < nrow(d.ROUTE)){
+  i <- i+1
+  d.ROUTE$GROUSE[i] <- mean(d$GROUSE[d$ROUTE.num == d.ROUTE$ROUTE[i]])
+}
+#Why does that run so quickly? 
 
 #23. Create a data.frame called d.ROUTE.NA from d.NA that contains the mean value of GROUSE for each ROUTE using a for loop, in which the ROUTE with an NA is given the value NaN. You will need the is.na() function for this.
-d.ROUTE.NA <- data.frame(ROUTE = unique(d.NA$num.ROUTE))
 
+d.ROUTE.NA <- data.frame(ROUTE = unique(d.NA$ROUTE.num))
+
+#This one melted my brain a little bit, I need to spend some more time looking at examples of this.  
+#Tony's answer:
+#for(i.ROUTE in unique(d.NA$num.ROUTE)){
+#  x <- d.NA$GROUSE[d.NA$num.ROUTE == i.ROUTE]
+#  if(any(is.na(x))){
+#    #if(sum(is.na(x)) > 0){
+#    d.ROUTE.NA$GROUSE[d.ROUTE.NA$ROUTE == i.ROUTE] <- NaN
+#  }else{
+#    d.ROUTE.NA$GROUSE[d.ROUTE.NA$ROUTE == i.ROUTE] <- mean(x)
+#  }		
+#}
 #################################################################
 # Chapt 15. Functions
 #################################################################
 
 #24. Write a function locate_station() that returns the LAT and LONG for a ROUTE and STATION in d. Note that you are best to use num.ROUTE, not ROUTE.
+locate_station <- function(route, station, data){
+  return(data[data$ROUTE.num == route & data$STATION == station, c("LAT", "LONG")])
+}
+locate_station(route=25, station=4, data=d)
+#Now this is cool! 
+
+#DPLYR version from Tony: 
+library(tidyverse)
+locate_station_d <- function(Route_num, Station_num, data) {
+  data %>% 
+    filter(ROUTE.num == Route_num) %>%
+    filter(STATION == Station_num) %>%
+    select(starts_with('L'))
+}
+
+locate_station_d(Route_num = 25, Station_num = 4, data=d)
+#Cool beans! 
+#Tony has a bunch of cool code where you can check and debug this as neccessary 
 
 #25. Write a function distance_station() that returns a new data.frame containing the Euclidean distance between a specified ROUTE and STATION in d and all other routes and stations. Don't bother about converting to meters -- just calculate distance in terms of UTM values (LAT and LONG). Note that you can use the function locate_station() in your new function.
+#I had to go to Tony's aanswers again for this one - 
+distance_station <- function(route, station, data){
+  focal.location <- locate_station(route=route, station=station, data=data)
+  w <- data[,c("ROUTE.num","STATION","LAT","LONG")] 
+  for(i in 1:nrow(w)) w$distance[i] <- 
+    ((focal.location$LAT - data$LAT[i])^2 + (focal.location$LONG - data$LONG[i])^2)^.5
+  return(w)
+}
+distance_station(route=25, station=4, data=d)
+
 
 # 26. Write a function plot_station() that plots the location of stations, with the size of the point for each station decreasing with increasing distance from a focal station specified as input to the function.
 
+plot_station <- function(lat = 572528, long = 5115360){
+  return(ggplot() + 
+           geom_point(data = d, aes(x = LAT, y = LONG, size = ((LAT-lat)^2 + (LONG-long)^2))))
+}
+
+plot_station()
 #################################################################
 # Chapt 16. Scoping rules in R
 #################################################################
@@ -313,6 +380,8 @@ f2 <- function(x) {
 }
 f2(3)
 
+#Changing the position of g will influence the value of y even when it is re-defined as 2 in both functions
+
 #################################################################
 # Chapt 17. Standards
 #################################################################
@@ -324,12 +393,28 @@ f2(3)
 #################################################################
 
 # 28. Use tapply() to create the same date.frame as aggregate(GROUSE ~ num.ROUTE, data=d, FUN=mean). You can also try this using ROUTE rather than num.ROUTE, and you will see some problems.
-aggregate(GROUSE ~ num.ROUTE, data=d, FUN=mean)
+aggregate(GROUSE ~ ROUTE.num, data=d, FUN=mean)
+?tapply
+#So this is what we're trying to create
+df_grouse <- data.frame("ROUTE"=1:50,"mean_GROUSE"=tapply(d$GROUSE, d$ROUTE.num, mean))
+#Seems to be the same values! 
 
 # 29. First, add columns to data.frame d which give the distance of each station from two locations (e.g., ROUTE = 1, STATION = 1; and ROUTE = 40, STATION = 1). Use apply() to create an additional column that is the sum of these distances.
+?apply
+#ROUTE = 1, STATION = 1; and ROUTE = 40, STATION = 1
+#Creating lots of new columns
+d$distance_1_1 = distance_station(route=1, station=1, data=d)$distance
+d$distance_40_1 = distance_station(route=40, station=1, data=d)$distance
+d$mean.distance_1_1_40_1 <- apply(d[,c("distance_1_1","distance_40_1")], MARGIN = 1, FUN=mean)
 
 # 30. Use lapply() and split() to create the same date.frame as aggregate(GROUSE ~ num.ROUTE, data=d, FUN=mean). You can also try this using ROUTE rather than num.ROUTE, and you will see some problems.
-aggregate(GROUSE ~ num.ROUTE, data=d, FUN=mean)
+aggregate(GROUSE ~ ROUTE.num, data=d, FUN=mean)
+?lapply
+?split
+#Had to go to Tony's doc for this and cbind shenanigans 
+
+new_df <- cbind(ROUTE=unique(d$ROUTE.num), GROUSE=unlist(lapply(split(d$GROUSE, d$ROUTE.num), FUN=mean)))
+
 
 #################################################################
 # Chapts 19/20/21. Regular expressions, Debugging and Profiling
@@ -342,6 +427,14 @@ aggregate(GROUSE ~ num.ROUTE, data=d, FUN=mean)
 #################################################################
 
 # 31. Plot a histogram of 1000 values simulated from a Gaussian distribution with mean = 0 and standard deviation = 1. Then plot the probability density function to compare them. You will need the hist() function (with the freq=F option).
+dist <- rnorm(1000)
+hist(dist, freq=F)
+lines((-30:30)/10, dnorm((-30:30)/10))
 
 # 32. Plot a histogram of 1000 values simulated from a Poisson distribution with lambda = 3. Then plot the probability density (or mass) function to compare them. You will need the hist() function (with the freq=F option).
+lam <- 3
+dist_2 <- rpois(1000, lambda = lam)
+hist(dist_2, freq = F, breaks=0:(5*lam) - .1)
+lines(0:(5*lam) + .5, dpois(0:(5*lam), lambda = lam))
 
+#Had to use Tony's code for proper line-up of my line, otherwise it was right shifted  
