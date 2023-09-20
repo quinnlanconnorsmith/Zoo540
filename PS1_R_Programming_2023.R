@@ -330,10 +330,10 @@ locate_station_d <- function(Route_num, Station_num, data) {
 
 locate_station_d(Route_num = 25, Station_num = 4, data=d)
 #Cool beans! 
-#Tony has a bunch of cool code where you can check and debug this as neccessary 
+#Tony has a bunch of cool code where you can check and debug this as necessary 
 
 #25. Write a function distance_station() that returns a new data.frame containing the Euclidean distance between a specified ROUTE and STATION in d and all other routes and stations. Don't bother about converting to meters -- just calculate distance in terms of UTM values (LAT and LONG). Note that you can use the function locate_station() in your new function.
-#I had to go to Tony's aanswers again for this one - 
+#I had to go to Tony's answers again for this one - 
 distance_station <- function(route, station, data){
   focal.location <- locate_station(route=route, station=station, data=data)
   w <- data[,c("ROUTE.num","STATION","LAT","LONG")] 
