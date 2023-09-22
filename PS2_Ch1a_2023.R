@@ -11,6 +11,21 @@
 # Once you have installed these packages, you won't need to do it again.
  
 
+#Testing assumptios
+
+mod <- lm(asin(sqrt(MEAN_GROUSE)) ~MEAN_WIND, data=w)
+
+#independence of residuals
+car::durbinWatsonTest()
+
+#heteroskedasticity 
+
+car::ncvTest(mod)
+
+#normality 
+hist(mod$residuals)
+qqnorm(mod$residuals)
+shaprio.test(mod$residuals)
 # Packages you will need for Chapter 1:
 library(lme4)
 library(lmerTest)
@@ -18,7 +33,7 @@ library(car)
 
 # This problem set begins to explore the grouse data. It is based on correlated_data Ch1 sections 1.1 to 1.4.
 
-	# For the homework, ONLY TURN IN THE R CODE THAT YOU USED. Start with the code below and add to it anything you need. This code is slightly modified from the code available with the correlateddata book. Identify you new code (so I can find it) by placing it between marker rows #~~~~~~~~~~~~~~~~~~~~~~~~~~~. I will get your full answers to the questions by asking people in class, so there is no need for you to write them down.
+# For the homework, ONLY TURN IN THE R CODE THAT YOU USED. Start with the code below and add to it anything you need. This code is slightly modified from the code available with the correlateddata book. Identify you new code (so I can find it) by placing it between marker rows #~~~~~~~~~~~~~~~~~~~~~~~~~~~. I will get your full answers to the questions by asking people in class, so there is no need for you to write them down.
 
 # 1. In figure 1.1 (left panel), it looks like there is spatial correlation in the numbers of grouse scored per route (even though there isn't). Is there a simple way you could test for spatial correlation? (NOTE: This might require NO NEW R CODE.)
 
@@ -104,8 +119,20 @@ hist(w$MEAN_GROUSE, main="", xlab="MEAN_GROUSE per ROUTE")
 plot(MEAN_GROUSE ~ MEAN_WIND, data=w)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Question 1: In figure 1.1 (left panel), it looks like there is spatial correlation in the numbers of grouse scored per route (even though there isn't). Is there a simple way you could test for spatial correlation?
+# Question 1: In figure 1.1 (left panel), it looks like there is spatial correlation in the numbers of grouse scored per route (even though there isn't). 
+# Is there a simple way you could test for spatial correlation?
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#There are statistical tests that can test for spatial correlation/autocorrelation, one of which is Moran's index. 
+library(spdep)
+?moran.test
+
+#Update - you probably shouldn't do the following
+#Can we do the following? 
+#Or is there some interaction we also have to test for? 
+#cor.test(d$GROUSE, as.numeric(d$LAT)) 
+#cor.test(d$GROUSE, as.numeric(d$LONG)) 
+
 
 
 #################################################################
@@ -115,15 +142,40 @@ plot(MEAN_GROUSE ~ MEAN_WIND, data=w)
 # Packages you will need:
 library(lme4)
 library(lmerTest)
+library(stats)
 
 ######
 # 1.4.1 LM at the route level: Analyses at the ROUTE level using an arcsine-square-root transform
 summary(lm(asin(sqrt(MEAN_GROUSE)) ~ MEAN_WIND, data=w))
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Question 2: What are the assumptions made for a linear model (LM) in section 1.4.1? Which of these assumptions are likely to be violated when applying a LM in regressing MEAN_GROUSE on MEAN_WIND? Which of these violations do you think leads to greatest concerns about the P-values produced in the regression?
+# Question 2: What are the assumptions made for a linear model (LM) in section 1.4.1? 
+#Which of these assumptions are likely to be violated when applying a LM in regressing MEAN_GROUSE on MEAN_WIND? 
+#Which of these violations do you think leads to greatest concerns about the P-values produced in the regression?
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#The assumptions for this linear model are: 
+#Errors are independent 
+#Error has the same variance (heteroskedascity)
+#yi depends linearly on xi 
+#xi and error are uncorrelated 
 
+#Testing assumptions
+mod <- lm(asin(sqrt(MEAN_GROUSE)) ~MEAN_WIND, data=w)
+
+#independence of residuals
+car::durbinWatsonTest(mod)
+
+#heteroskedasticity 
+car::ncvTest(mod)
+
+#normality 
+hist(mod$residuals)
+qqnorm(mod$residuals)
+shapiro.test(mod$residuals)
+
+#If variance of residuals is too low, because we're taking mean and the variation, our p-value may be lower than it should be
+
+#After chatting in class, the heteroskedascity problem & normal distribution of errors seem to be the biggest issues 
 
 ######
 # 1.4.2 Binomial GLM at the route level
@@ -138,8 +190,22 @@ summary(glm(SUCCESS ~ MEAN_WIND, family = binomial, data=w))
 summary(glm(cbind(GROUSE, STATIONS - GROUSE) ~ MEAN_WIND, family = binomial, data=w))
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Question 3: Perform a Binomial GLM using a probit link function rather than a logit link function in the analyses in section 1.4.2. Are the results the same? Can you explain the differences? Which one is correct?
+# Question 3: Perform a Binomial GLM using a probit link function rather than a logit link function in the analyses in section 1.4.2. 
+# Are the results the same? 
+# Can you explain the differences? 
+# Which one is correct?
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#logit link function 
+summary(glm(cbind(GROUSE, STATIONS - GROUSE) ~ MEAN_WIND, family = binomial(link = "logit"), data=w))
+#Probit link function 
+summary(glm(cbind(GROUSE, STATIONS - GROUSE) ~ MEAN_WIND, family = binomial(link="probit"), data=w))
+
+#These results are not the same! 
+#The probit link uses the cumulative distribution function of the normal distribution to enforce the
+#assumption that the binary outcome random variable is driven by a probability from 0-1
+#The logit link used a sigmoidal function to enforce this assumption
+#But are both models 'correct'? AIC is incredibly close between the two models. 
+
 
 # Likelihood Ratio Test for b1.
 mod.f <- glm(SUCCESS ~ MEAN_WIND, family = binomial, data=w)
@@ -151,7 +217,7 @@ LRT.b1
 ######
 # 1.4.3 Quasi-binomial GLM at the route level: This model looks exactly like the binomial GLM, although the family is changed to quasibinomial.
 summary(glm(SUCCESS ~ MEAN_WIND, family = quasibinomial, data=w))
-
+#so this has the fudge built into it, probably best to use this as opposed to a binomial family
 
 ######
 # 1.4.4 Logit-normal binomial GLMM at the route level: This GLMM has "observation-level variation", with each ROUTE allowed to take a different value from a normal distribution. This technically produces a logit normal-binomial distribution.
@@ -198,8 +264,12 @@ lines(n*inv.logit(b0 + b1*x) ~ x, col="red")
 # Side comment: What is the meaning of the coefficients from LM?
 
 summary(lm(asin(sqrt(MEAN_GROUSE)) ~ MEAN_WIND, data=w))
+#The coefficients from the linear model represent the constants for the intercept and slope (Wind)
+#The intercept is the expected value of grouse considering all wind speeds
+#The mean wind estimate is the slope, so with every 1km/hr increase in wind speed, probability of detecting grouse goes down 0.13
+#the standard error for the intercept and slope allows us to look at how to coefficients vary from the average
+#t and p-values are used for determining significance 
 summary(glm(SUCCESS ~ MEAN_WIND, family = quasibinomial, data=w))
-
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -220,13 +290,34 @@ summary(glmer(SUCCESS ~ MEAN_WIND + (1 | ROUTE), data=w, family=binomial))$coef
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Question 4: In section 1.4.5 there is a simulation for the GLMM model. How could you use this to test whether the P-values given by the LM (section 1.4.1) are correct?
+# Question 4: In section 1.4.5 there is a simulation for the GLMM model. 
+# How could you use this to test whether the P-values given by the LM (section 1.4.1) are correct?
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+summary(mod)
+glmod <- glm(SUCCESS ~ MEAN_WIND, family = quasibinomial, data=w)
+summary(glmod)
+
+anova(mod,glmod)
+#Can we compare mean wind between this anova call and our original LM? If so, it seems really close!
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Question 5: What questions do you have about the material in section 1.1 to 1.4? What needs more explanation? I'm serious about asking this question, because I want to improve the book. (NOTE: This requires NO NEW R CODE.)
+# Question 5: What questions do you have about the material in section 1.1 to 1.4? 
+# What needs more explanation? 
+# I'm serious about asking this question, because I want to improve the book. (NOTE: This requires NO NEW R CODE.)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#I'm still wrapping my head around much of the notation and equations within the first chapter of the book, but most of it makes sense to me
+#I do enjoy the discussions we have in class of you explaining the HW, that allows me a few looks at it
+#On my own with the book -> talk about in class/work with partners -> explanations in class. 
+#That format really help me out with some of the more complex under-the-hood concepts!
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Question 6 (bonus): Another method that could be used with these data is a beta binomial model. For bonus points, give this a try.
+# Question 6 (bonus): Another method that could be used with these data is a beta binomial model. 
+# For bonus points, give this a try.
+#An attempt
+library(VGAM)
+
+dbetabinom(0:50, size= 50, prob=0.50, rho=0.01, log=FALSE)
+#Now how to input our data? 
+#dbetabinom(x=w, size= 50, prob=0.50, rho=0.01, log=FALSE)
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

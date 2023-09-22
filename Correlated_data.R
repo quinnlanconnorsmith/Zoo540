@@ -4,7 +4,7 @@
 #yi depends linearly on xi 
 #xi and error are uncorrelated 
 
-d <- read.csv(file="grouse_data.csv", header=T)
+d  <- read.csv(file="grouse_data.csv", header=T)
 d
 # STATION and ROUTE were uploaded as integers; this converts them to factors.
 d$STATION <- as.factor(d$STATION)
