@@ -204,6 +204,7 @@ summary(glm(cbind(GROUSE, STATIONS - GROUSE) ~ MEAN_WIND, family = binomial(link
 #The probit link uses the cumulative distribution function of the normal distribution to enforce the
 #assumption that the binary outcome random variable is driven by a probability from 0-1
 #The logit link used a sigmoidal function to enforce this assumption
+#The probit function assumes a cumulative probabiltiy of 0 for longer, does this contribute to the significant intercept term? 
 #But are both models 'correct'? AIC is incredibly close between the two models. 
 
 
