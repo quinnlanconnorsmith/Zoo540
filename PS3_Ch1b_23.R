@@ -1,4 +1,4 @@
-#Quinn Smith code, Connor & Janelle 
+#Quinn Connor & Janelle 
 # PS3
 # due 3 October, 2023 by midnight
 
