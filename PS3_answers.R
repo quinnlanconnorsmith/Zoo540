@@ -1,36 +1,76 @@
-#Quinn Connor & Janelle 
 # PS3
 # due 3 October, 2023 by midnight
 
 # This problem set is to check to make sure you are up and running in R, and it begins to explore the ruffed grouse data. It is based on correlated_data Ch1 ("Ch_1_10Aug18.R") sections 1.5 to 1.7.
 
 # For the homework, EACH INDIVIDUAL SHOULD TURN IN A SEPARATE .R FILE. Start with the code from correlated_data ("Ch_1_10Aug18.R") and add to it anything you need. Identify you new code (so I can find it) by placing it between marker rows #~~~~~~~~~~~~~~~~~~~~~~~~~~~. I will get your full answers to the questions by randomly asking people in class, so there is no need for you to write them down.
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 # 1. What questions do you have about the material in section 1.5 to 1.7? What needs more explanation? I'm serious about asking this question, because I want to improve the book. (NOTE: This requires NO NEW R CODE.)
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#Simulations seem like a great way to explore modeling methodologies and take a deeper look at what we're doing. What situations does simulating not make sense, if any? Is it a waste of time in these situations, or detrimental (e.g. leading down the "wrong" path)? 
 
-#What is the difference, in your words, between anova() and Anova()? 
-?anova
-?Anova
-#Ope you cover this in correlated data - disregard 
-#For the grouse data, 50 means must be estimated. The analysis is easy to do with the glm() function, although here I have also used the function Anova() from the car library (Fox and Weisberg 2011) because it gives a summary statistic for the overall effect of the factor ROUTE in the model, rather than reporting all 49 estimates of b2[factor] for the differences among routes. (The remaining route serves as the intercept, accounting for the total of 50 levels of the factor ROUTE.)
-
-#Would love to go over simulation of the lmer with the class! 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 2. Suppose Y1, Y2, and Y3 are independent normal random variables with variances 1, 2, and 3, respectively. You can think of (Y1 + Y3) and (Y2 + Y3) as the number of grouse observed in station 1 and station 2 of route 1: Y3 gives the random effect that is common to all stations within route 1, while Y1 and Y2 give the station-specific random effects for stations 1 and 2 within route 1. What is the covariance between (Y1 + Y3) and (Y2 + Y3)?  If you want, check your answer with a simulation.
 
-#  Cov(Y1 + Y3, Y2 + Y3) = Cov(Y1, Y2) + Cov(Y1, Y3) + Cov(Y2, Y3) + Cov(Y3, Y3) Since Y1, Y2, and Y3 are independent, Cov(Y1, Y2) = Cov(Y1, Y3) = Cov(Y2, Y3) = 0. Also, the covariance of a random variable with itself is equal to its variance, so Cov(Y3, Y3) = Var(Y3) = 3.The covariance between (Y1 + Y3) and (Y2 + Y3) simplifies to: Cov(Y1 + Y3, Y2 + Y3) = 0 + 0 + 0 + 3 = 3                    The covariance between (Y1 + Y3) and (Y2 + Y3) is 3
-#From Tony on Monday
-predicted.cov <-3
-Y1=rnorm(1000, mean=0, sd=1)
-Y2=rnorm(1000, mean=0, sd=sqrt(2))
-Y3=rnorm(1000, mean=0, sd=sqrt(3))
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+predicted.cov <- 3
+
+
+Y1=rnorm(10000, mean=0, sd=1)
+Y2=rnorm(10000, mean=0, sd=sqrt(2))
+Y3=rnorm(10000, mean=0, sd=sqrt(3))
 Y4=Y1+Y3
-Y5 =Y2+Y3
-cov(Y4,Y5)
+Y5=Y2+Y3
+cov(Y4, Y5)
 predicted.cov
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Further exploration of covariance matrices
+
+# Suppose you have 3 groups (routes) with 4 samples (stations) per group.
+ngroups <- 3
+nsamples.per.group <- 4
+nsamples <- ngroups * nsamples.per.group
+
+# You want to estimate the covariance matrix for the 12 samples. Suppose the outcome (number of grouse) is given by
+
+#	Z <- b0 + beta.route + e
+
+# where b0 is the mean number of grouse per station, beta.route is route-specific difference from the overall mean (b0) for the 3 groups, and e is a randome variable giving the sample(station)-specific variation. 
+
+# beta.route is assumed to be normally distributed with mean zero and standard deviation sd.beta.route
+
+# set b0 to zero and allow variation among routes using var.beta > 0.
+b0 <- 0
+var.beta.route <- 3
+var.e <- 1
+
+# create a group variable
+group <- as.factor(rep(1:ngroups, each=nsamples.per.group))
+
+# perform the simulations nrep times
+nrep <- 100000
+
+# create a matrix to collect the simulation results
+sim.results <- matrix(NA, nrow = nrep, ncol = nsamples)
+
+# loops of nreps to collect values of Z
+for(i.rep in 1:nrep){
+  e <- rnorm(nsamples, mean = 0, sd = var.e^.5)
+  beta <- rnorm(ngroups, mean = 0, sd = var.beta.route^.5)
+  beta.route <- rep(beta, each = nsamples.per.group)
+  
+  # simulation
+  Z <- b0 + beta.route + e
+  
+  # place Z into the rows of sim.results
+  sim.results[i.rep,] <- Z
+}
+# This is what the simulations look like
+head(sim.results)
+
+# This computes the covariance of all the values from sim.results, i.e., the covariance matrix. The round() function makes things easier to see.
+round(cov(sim.results), digits = 1)
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 # code from Ch_1_10Aug18.R
 
@@ -138,12 +178,15 @@ lines(.02*(-1000:1000), dnorm(.02*(-1000:1000), mean=fixef(z.glmm)['WIND'], sd=s
 var(z.glm$coef[2:51])
 # This is due to the outlier estimates of the ROUTE coefficents of zero
 
-
 # Produce a data.frame d.no0 that only contains ROUTES with at least one grouse observation, and then enalyze it with glm() and glmer(). The results for the glm() and glmm() are much more similar.
 w.no0 <- w[w$MEAN_GROUSE > 0,]
 d.no0 <- d[is.element(d$ROUTE, w.no0$ROUTE),]
 
-Anova(glm(GROUSE ~ WIND + ROUTE, data=d.no0, family=binomial))
+z.glm.no0 <- glm(GROUSE ~ WIND + ROUTE, data=d.no0, family=binomial)
+Anova(z.glm.no0)
+var(z.glm.no0$coef[2:length(z.glm.no0$coef)])
+
+# Note that the variance in fixed effects for routes in the GLM is now much closer to (but still larger than) the variance of the random effets term for ROUTE in the GLMM.
 summary(glmer(GROUSE ~ WIND + (1 | ROUTE), data=d.no0, family=binomial))
 
 ######
@@ -151,117 +194,112 @@ summary(glmer(GROUSE ~ WIND + (1 | ROUTE), data=d.no0, family=binomial))
 summary(lmer(GROUSE ~ WIND + (1 | ROUTE), data=d))
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# 3.  (from book) Fit a LM to the station-level data treating route as a factor. This is similar to the LMM treating route as a random effect (subsection 1.5.5). 1). Do they give similar results about the effect of WIND on GROUSE? 2).Is the comparison between these LM and LMM similar to the comparison between the GLM treating route as a factor (subsection 1.5.3) and the GLMM treating route as a random effect (subsection 1.5.4)? 3). Produce a figure like figure 1.3. Does this explain your answer in the same way figure 1.3 explains the difference between the GLM and GLMM?
+# 3.  (from book) Fit a LM to the station-level data treating route as a factor. This is similar to the LMM treating route as a random effect (subsection 1.5.5). Do they give similar results about the effect of WIND on GROUSE? Is the comparison between these LM and LMM similar to the comparison between the GLM treating route as a factor (subsection 1.5.3) and the GLMM treating route as a random effect (subsection 1.5.4)? Produce a figure like figure 1.3. Does this explain your answer in the same way figure 1.3 explains the difference between the GLM and GLMM?
 
-#1). Where the wind is very significant in the LMM, it's only close to significant in the LM
-summary(lm(GROUSE ~ WIND + ROUTE, data=d))
+summary(lmer(GROUSE ~ WIND + (1 | ROUTE), data=d))
+library(lmerTest)
 summary(lmer(GROUSE ~ WIND + (1 | ROUTE), data=d))
 
-lm <-lm(GROUSE ~ WIND + ROUTE, data=d)
-lmer <-lmer(GROUSE ~ WIND + (1 | ROUTE), data=d)
-#2). From above
-z.glm <- glm(GROUSE ~ 0 + WIND + ROUTE, data=d, family=binomial)
-z.glmm <- glmer(GROUSE ~ WIND + (1 | ROUTE), data=d, family=binomial)
-summary(z.glm)
-summary(z.glmm)
-#In a way, yes. The glmm which treats route as a random effect has a significant effect of wind, where the glm does not. Do the glm and lm "spread" out our power for detecting statistical significance? 
+summary(lm(GROUSE ~ WIND + ROUTE, data=d))
+Anova(lm(GROUSE ~ WIND + ROUTE, data=d))
 
-#3). We don't have that far grouping like we saw with the glm and glmm, instead there's just a slight spread in the LM. Only positive values in the lmer? 
-# Fig. 1.3
+# Note that the P-value for WIND is higher for the LM, indicating a loss of power relative to the LMM.
+
+# To get the equivalent of random effects for ROUTE using the LM, you need to remove the intercept using "0 + ". This gives you the value for all routes, the the "residual" route effect is these values minus their mean value (used in the hist() plot).
+z.lm <- lm(GROUSE ~ 0 + WIND + ROUTE, data=d)
+z.lmm <- lmer(GROUSE ~ 1 + WIND + (1 | ROUTE), data=d)
+
+# Fig. similar to 1.3. 
 par(mfrow=c(1,2), mai=c(1,.8,.5,.1), mgp=c(3,.5,0))
+hist(z.lm$coef[2:51] - mean(z.lm$coef[2:51]), breaks=.1*(-20:20), freq=F,  main="Estimates from LM", xlab="b1 (residual route effects)")
+hist(unlist(ranef(z.lmm)), breaks=.1*(-20:20), freq=F, main="Estimates from LMM", xlab="b1 (random effects for route)")
+lines(.02*(-1000:1000), dnorm(.02*(-1000:1000), mean=fixef(z.lmm)['WIND'], sd=summary(z.lmm)$var[[1]][1]^.5), col="red")
 
-# This plots the 50 values of route-factor coefficients
-hist(lm$coef[2:51], breaks=(-3:3), freq=F,  main="Estimates from LM", xlab="b1")
+# There is more variation in the predicted route coefficients for the LM than the LMM. 
+var(z.lm$coef[2:51])
+var(unlist(ranef(z.lmm)))
 
-# This plots the 50 values of the random effects associated with the 50 routes
-hist(coef(lmer)$ROUTE[[1]], breaks=(-3:3), freq=F, main="Estimates from lmer", xlab="b1")
-lines(.02*(-1000:1000), dnorm(.02*(-1000:1000), mean=fixef(lmer)['WIND'], sd=summary(lmer)$var[[1]][1]^.5), col="black")
-
+# The patterns in this figure aren't like figure 1.3; in both the LM and LMM, the values of b1 are clustered around zero. The loss of power to detect the effect of WIND in the LM is likely due to the number of parameters that must be estimated. Even though this leads to a better model fit, the calculation of the P-value penalizes all of the parameters that are used in the model.
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 4. In section 1.4.5 there is a simulation for the GLMM model of route-level data. How could you use a model (it has to be a different model) for station-level data to test whether the P-values given by the LMM (section 1.5.5) are correct? This question is similar to Question 4 in Problem Set 2.
 
-#Attempt 1
+# This is the inverse logit function
+inv.logit <- function(x){
+  1/(1 + exp(-x))
+}
 
-#sub_n  <- 50 # number of subjects in this simulation
-#sub_sd <- 100 # SD for the subjects' random intercept
+# Set up parameters for the simulation. There are 50 groups with 8 samples per group.
+ngroups <- 50
+nsamples.per.group <- 8
+nsamples <- ngroups * nsamples.per.group
 
-#sub <- tibble(
-#  sub_id = 1:sub_n,
-#  sub_i  = rnorm(sub_n, 0, sub_sd), # random intercept
-#  sub_cond = rep(c("wind","no_wind"), each = sub_n/2) # between-subjects factor
-#)
+# set the coefficients to zero and allow variation among routes using sd.beta > 0.
+b0 <- 0
+b1 <- 0
+sd.beta <- 1
 
-#Attempt 2
+# create a group variable
+group <- as.factor(rep(1:ngroups, each=nsamples.per.group))
 
-nroute = 50
-nstation = 8
-mu = 5
-sds = 2
-sd = 1
-
-route = rep(LETTERS[1:nroute], each = nstation) 
-station = rep(LETTERS[1:nstation], each = nroute) 
-stationeff = rnorm(nstation, 0, sds) 
-stationeff = rep(standeff, each = nroute) 
-routeeff = rnorm(nstation*nroute, 0, sd) 
-dat = data.frame(station, standeff, route, routeeff) 
-dat$resp = with(dat, mu + stationeff + routeeff ) 
-
-#Unsure what to do about this
-
-# Strategy:
-# 1. Set up a simulatmodel that can produce data from the same statistical model you are going to test
-# 2. Simulate lots of datasets (2000)
-# 3. For each data set, fit the model.
-# 4. Compare the results of the large numbers of fits to the model that you used to simulate the data
-#summary(lm(GROUSE ~ WIND + ROUTE, data=d))
-#lm(GROUSE ~ WIND + ROUTE, data=d)$coef[2,4]
-#summary(lmer(GROUSE ~ WIND + (1 | ROUTE), data=d))
-
-# Set up test parameter values that you will estimate with the statistical model 
-#b0 <- 0
-#b1 <- 0
-#n <- 8
-#sd.e <- 1
-
-# Set the size of each dataset
-#nsamples <- 10
-
-# This just gives an example simulation that you should check.
-#x <- rnorm(nsamples, mean=0, sd=1)
-#e <- rnorm(nsamples, mean=0, sd=sd.e)
-
-#Z <- b0 + b1 * x + e
-#p <- inv.logit(Z)
-#Y <- rbinom(nsamples, size=n, prob=p)
-
-summary(lmer(GROUSE ~ WIND + (1 | ROUTE), data=d))
-
-# Perform many simulations to create lots of datasets and fit the model to each.
-#nrep <- 2000
-#test <- data.frame(rep=1:nrep)
-#for(rep in 1:nrep){
-#  x <- rnorm(nsamples, mean=0, sd=1)
-#  e <- rnorm(nsamples, mean=0, sd=sd.e)
+# perform the simulations nrep times
+nrep <- 2000
+test<- data.frame(rep=1:nrep)
+for(rep in 1:nrep){
+  x <- rnorm(nsamples, mean=0, sd=1)
+  e <- rnorm(nsamples, mean=0, sd=1)
+  beta <- rnorm(ngroups, mean=0, sd=sd.beta)
+  x.beta <- rep(beta, each=nsamples.per.group)
   
-#  Z <- b0 + b1 * x + e
-#  p <- inv.logit(Z)
-#  Y <- rbinom(nsamples, size=n, prob=p)
+  # simulation
+  Z <- b0 + x * b1 + x.beta + e
   
-#  test$p.value[rep] <- summary(lmer(GROUSE ~ WIND + (1 | ROUTE), data=d))$coef[2,4]
-#  test$b1[rep] <- summary(lmer(GROUSE ~ WIND + (1 | ROUTE), data=d))$coef[2,1]
-#}
+  p <- inv.logit(Z)
+  Y <- rbinom(nsamples, size=1, prob=p)
+  
+  # These use the summary() function for extracting P-values
+  test$p.value.lmer[rep] <- summary(lmer(Y ~ x + (1|group)))$coef[2,5]
+  test$p.value.glmer[rep] <- summary(glmer(Y ~ x + (1|group), family=binomial))$coef[2,4]
+}
 
-# Plot a histogram of the P-values and compute the number of datasets for which P < 0.05
-#par(mfrow = c(1,1), mai = c(1,.7,1,.3))
-#hist(test$p.value, breaks=20, main=paste0("Proportion of P-values < 0.05 = ",mean(test$p.value < 0.05)))
+# Histograms of the P-values. Values for the LMM are in gray and for the GLMM in red.
+par(mfrow=c(1,1))
+hist(test$p.value.lmer, breaks=20, main=paste0("lmer: ", mean(test$p.value.lmer < 0.05), " glmer: ", mean(test$p.value.glmer < 0.05)))
+hist(test$p.value.glmer, breaks=20, add=T, col="red")
 
-# Plot a histogram of the estimates of b1
-#hist(test$b1, breaks=20, main="b1")
+
+#~~~~~~~~~~~~~~~~~
+# The code can also be used to see if the LMM has the same statistical power at the GLMM by setting b1 != 0
+b1 <- .2
+
+test<- data.frame(rep=1:nrep)
+for(rep in 1:nrep){
+  x <- rnorm(nsamples, mean=0, sd=1)
+  e <- rnorm(nsamples, mean=0, sd=1)
+  beta <- rnorm(ngroups, mean=0, sd=sd.beta)
+  x.beta <- rep(beta, each=nsamples.per.group)
+  
+  # simulation
+  Z <- b0 + x * b1 + x.beta + e
+  
+  p <- inv.logit(Z)
+  Y <- rbinom(nsamples, size=1, prob=p)
+  
+  # These use the summary() function for extracting P-values
+  test$p.value.lmer[rep] <- summary(lmer(Y ~ x + (1|group)))$coef[2,5]
+  test$p.value.glmer[rep] <- summary(glmer(Y ~ x + (1|group), family=binomial))$coef[2,4]
+}
+
+# Histograms of the P-values. Values for the LMM are in gray and for the GLMM in red.
+par(mfrow=c(1,1))
+hist(test$p.value.lmer, breaks=20, main=paste0("b1 = ",b1,";  lmer: ", mean(test$p.value.lmer < 0.05), " glmer: ", mean(test$p.value.glmer < 0.05)))
+hist(test$p.value.glmer, breaks=20, add=T, col="red")
+
+# This shows that the LMM has almost the same power as the GLMM.
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 #########################################################
 # 1.6 Reiteration of results
@@ -288,3 +326,5 @@ summary(glm(GROUSE ~ WIND + ROUTE, data=d, family=binomial))$coef[1:2,]
 summary(glmer(GROUSE ~ WIND + (1 | ROUTE), data=d, family=binomial))$coef
 
 summary(lmer(GROUSE ~ WIND + (1 | ROUTE), data=d))$coef
+
+
