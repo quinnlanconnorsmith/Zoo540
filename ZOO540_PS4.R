@@ -1,7 +1,10 @@
-#Quinn, Angelica, Biz
+# Angelica, Biz, Quinn
 # PS4
 # due 17 October, 2023 by midnight
-
+library(lme4)
+library(lmerTest)
+# The mvtnorm package has a function for randomly simulating from a multivariate normal distribution.
+library(mvtnorm)
 # This problem set is based on correlated_data Ch2 ("Ch_2_10Aug18.R").
 
 # For the homework, ONLY TURN IN THIS FILE WITH THE CODE THAT YOU ADDED TO IT. Start with the code from correlated_data ("Ch_1_10Aug18.R") that is below and add to it anything you need. Identify you new code (so I can find it) by placing it between marker rows #~~~~~~~~~~~~~~~~~~~~~~~~~~~. 
@@ -9,9 +12,111 @@
 # 1. What questions do you have about the material in chapter 2? What needs more explanation? I'm serious about asking this question, because I want to improve the book. (NOTE: This requires NO NEW R CODE.)
 
 # 2. As discussed in subsection 2.6.5, the LM should give good type I errors even when applied to binary data, provided the residuals are homoscedastic. This will be true for the simplest case of only a single predictor (independent) variable, because under the null hypothesis H0:b1 = 0, the residuals will be homoscedastic (since the predicted values for all points are the same). However, if there is a second predictor variable that is correlated to the first, then under the null hypothesis H0:b1 = 0 the residuals will not be homoscedastic. This could generate incorrect type I errors for the LM. In the simulations of binary data, this didn't seem to cause problems with type I error for the LM (section 2.6). For this exercise, investigate this problem for binomial data with more than two (i.e., 0/1) outcomes by computing the rate at which the null hypothesis H0:b1=0 is rejected in simulated data under the null hypothesis, exploring the case when there is a second independent variable x2 that is highly correlated with x1. You can modify the code from section 2.6 for this.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~
+n <- 1000
+b0 <- 2
+b1 <- 0
+b2 <- 1.5
+var.x <- 1
+cov.x <- .9
 
+size <- 2
+
+x <- rmvnorm(n, sigma = matrix(c(var.x, cov.x, cov.x, var.x), nrow=2))
+x1 <- x[,1]
+x2 <- x[,2]
+Y <- rbinom(n=n, size=size, prob=inv.logit(b0 + b1*x1 + b2*x2))
+dat <- data.frame(x1=x1, x2=x2, Y=Y)
+
+# Fit the reduced LM model
+mod.reduced <- lm(Y ~ x2, data=dat)
+dat$r <- mod.reduced$resid
+
+# Fig. 2.7
+# Plot the residuals
+par(mfrow=c(1,3))
+plot(r ~ x1, data=dat, xlab="Values of x1", ylab="Residuals")
+
+# Bin and plot the variances of the residuals
+dat <- dat[order(dat$x1),]
+bins <- round(n*(0:10)/10)
+resid <- data.frame(x1=bins[-1], var=NA)
+for(i in 2:11){
+  resid$x1[i-1] <- mean(dat$x1[bins[i-1]:bins[i]])
+  resid$var[i-1] <- var(dat$r[bins[i-1]:bins[i]])
+}
+plot(var ~ x1, data=resid, ylim=c(0,max(var)), xlab="Binned values of x1", ylab="Residual variance")
+
+plot(Y~x1, data=dat)
+
+
+n.list <- c(10,13,20,30,50,100,200)
+nsims <- 2000
+
+reject <- data.frame(n=n.list, lm=NA)
+i.n <- 0 
+for(n in n.list){
+  i.n <- i.n +1
+  Pvalues <- data.frame(glm.Wald=array(NA, dim=nsims), glm.con=NA, glm.LRT=NA, glm.boot0=NA, lm=NA)
+  for(i in 1:nsims){
+  x <- rmvnorm(n, sigma = matrix(c(var.x, cov.x, cov.x, var.x), nrow=2))
+  x1 <- x[,1]
+  x2 <- x[,2]
+  Z <- b0+b1*x1 + b2*x2
+  prob <- inv.logit(Z)
+  Y <- rbinom(n=n, size=1, prob=inv.logit(b0 + b1*x1 + b2*x2))
+  mod.lm <- lm(Y ~ x1+x2)
+  Pvalues$lm[i] <- summary(mod.lm)$coef[2,4]
+  
+  reject$lm[i.n] <- mean(Pvalues$lm , 0.05, na.rm = T)
+}
+}
+round(reject, digits=3)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 3. I illustrated the two bootstraps (bootstrapping the estimator of b1 and bootstrapping under the null hypothesis) using a GLM simulation and model. Analyze these bootstraps for a LM. Specifically, create a version of Fig. 2.6 for a LM in which you simulate data using a LM, and you then fit the simulated data with an LM. Both bootstraps give you a distribution of bootstrap estimates: for the bootstrap of b1, the estimates approximate the estimator of b1, and for the bootstrap under the null hypothesis, the estimates approximate the distribution of the deviance. For a LM, the estimator of b1 should be t-distributed, and the estimator of the deviance should be chi-squared distributed. By plotting the t-distribution with the bootstrapped estimator of b1 (like the blue line in the left panel of Fig. 2.6) and the chi-squared distribution with the bootstrapped estimator of the deviance (like the blue line in the right panel of Fig. 2.6) , confirm that this is true.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Fit full and reduced models to the data.
+mod.dat <- lm(Y ~ x1 + x2, data=dat)
+mod.reduced <- lm(Y ~ x2, data=dat)
+dev.dat <- 2*(logLik(mod.dat) - logLik(mod.reduced))[1]
 
+# Simulate the data using the reduced model.
+boot0 <- data.frame(LLR=rep(NA, nboot), converge=NA)
+dat.boot <- dat
+for(i in 1:nboot){
+  dat.boot$Y <- simulate(mod.reduced)[[1]]
+  mod.lm <- update(mod.dat, data=dat.boot)
+  mod.lm0 <- update(mod.reduced, data=dat.boot)
+  boot0$dev[i] <- 2*(logLik(mod.lm) - logLik(mod.lm0))[1]
+#  boot0$converge[i] <- mod.lm$converge
+}
+# Remove the cases when glm() did not converge
+#boot0 <- boot0[boot0$converge == T,]
+#pvalue <- mean(boot0$dev > dev.dat)
+#pvalue
+
+# This is the p-value from a LRT
+pchisq(dev.dat, df=1, lower.tail=F)
+
+# Fig. 2.6 
+# Comparing both bootstraps
+par(mfrow=c(1,2))
+
+# For small n, it might be necessary to remove poorly fit simulations
+boot <- boot[boot$b1 < (mean(boot$b1) + 2.5*sd(boot$b1)),]
+
+# Plot of parametric bootstrap
+hist(boot$b1, xlab="Bootstrap of b1", main = paste("b1 = ", round(mod.dat$coef[2],2), ",  Estimate mean = ", round(mean(boot$b1),2), sep=''), freq=F, breaks=40)
+#lines(c(mod.dat$coef[2],mod.dat$coef[2]), c(0,2), col="red")
+#lines(c(0,0), c(0,2), col="green")
+#lines(.1*(-100:100), dnorm(.1*(-100:100), mean=mod.dat$coef[2], sd=summary(mod.dat)$coef[2,2]), col="blue")
+
+# Plot of parametric bootstrap around H0
+hist(boot0$dev, xlab="Bootstrap of deviance", main = paste("Deviance = ", round(dev.dat,2), sep=''), freq=F, breaks=40)
+#lines(c(dev.dat,dev.dat), c(0,1), col="red")
+lines(.1*(1:100), dchisq(.1*(1:100), df=1), col="blue")
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 4. For the bootstrap estimator of b1, the P-value is given by
 
 # pvalue <- 2*min(mean(boot$b1 < 0), mean(boot$b1 > 0))
@@ -21,15 +126,140 @@
 # pvalue <- mean(boot0$LLR > LLR.dat)
 
 # Explain why these equations are different. Specifically, why does the P-value for the bootstrap of the estimator of b1 take the minimum of two values? (You DON'T need to write any R code.)
-
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#The two equations are different because they address different hypotheses and test different aspects of the model. The P-value for the estimator of b1 considers both sides of the distribution (two-tailed test), so the minimum operator is used to account for both cases, while the P-value for the deviance estimator is based on a one-tailed test, so there's no need for the minimum operator.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 5. When analyzing the binary regression model, I left out one of the best methods: logistic regression using a Firth correction. I won't go into details to explain how logistic regression with a Firth correction works, but the basic idea is to fit the regression using ML while penalizing the likelihood so that it doesn't show (as much) bias as the binomial glm. To see how logistic regression with a Firth correction performs, use the function logistf() in the package {logistf} to produce the same power figure as in Fig. 2.8 (subsection 2.6.6). Don't bother including the bootstrap tests, since they take more time: just use the Wald and LRT tests with the GLM fits, and the standard (t-distribution) test for the LM. You can still compare how well logistf() does compared to the other methods, since the LM performed the same as the bootstrap of H0. For the simulations, you fit logistf() using the syntax
 
 # mod.logistf <- logistf(Y ~ x1 + x2)
 
 # You can then extract the P-value for x1 with mod.logistf$prob[2].
-
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 6. As an exercise, produce figure 2.10 showing the power curves for the grouse data assuming that the station-level values of WIND are given by MEAN_WIND for all stations within the same route. This can be done easily by modifying the code provided for making figure 2.9.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
+b0 <- -1.0632
+b1 <- -0.4064
+sd.route <- 1.072
 
+b1.list <- -c(0, .1, .2, .3, .4, .5)
+
+d.sim <- d
+w.sim <- w
+
+nsims <- 2000
+reject <- data.frame(b1.true=array(0, dim=nsims*length(b1.list)), w.lm=NA, w.glm=NA, w.glm.quasi=NA, w.glmm=NA, d.lm=NA, d.glm=NA, d.glm.anova=NA, d.lmm=NA, d.glmm=NA)
+
+# I set these simulations up a little differently from those in section 2.6. Rather than computing the rejection rate for each b1, here I have kept all of the P-values for all of the simulations and used the aggregate() function to extract P-values from the entire table.
+
+#Get mean_wind values into d.sim 
+
+
+library(tidyverse)
+mean_wind <- d.sim %>%
+  group_by(ROUTE) %>%
+  summarise(MEAN_WIND = mean(WIND, na.rm = TRUE))
+
+new.d.sim<- left_join(d.sim, mean_wind, by="ROUTE")
+
+
+i <- 0
+for(b1 in b1.list) for(j in 1:nsims){
+  i <- i + 1
+  reject$b1.true[i] <- b1
+  
+  d.sim$RUGR <- simulate.d.glmm(d = d, sd = sd.route, b0 = b0, b1 = b1)
+  w.sim$RUGR <- aggregate(d.sim$RUGR, by = list(d.sim$ROUTE), FUN = sum)[,2]
+  w.sim$SUCCESS <- cbind(w.sim$RUGR, w.sim$STATIONS - w.sim$RUGR)
+  
+  z.w.lm <- lm(RUGR ~ MEAN_WIND, data=w.sim)
+  z.w.glm <- glm(SUCCESS ~ MEAN_WIND, family = binomial, data=w.sim)
+  z.w.glm.quasi <- glm(SUCCESS ~ MEAN_WIND, family = quasibinomial, data=w.sim)
+  z.w.glmm <- glmer(SUCCESS ~ MEAN_WIND + (1 | ROUTE), family = binomial, data=w.sim, control=glmerControl(calc.derivs=FALSE))
+  
+  z.d.lm <- lm(RUGR ~ MEAN_WIND, data=new.d.sim)
+  z.d.glm <- glm(RUGR ~ MEAN_WIND, family = "binomial", data=new.d.sim)
+  z.d.glm.anova <- glm(RUGR ~ MEAN_WIND + ROUTE, family = "binomial", data=new.d.sim)
+  z.d.glmm <- lmer(RUGR ~ MEAN_WIND + (1 | ROUTE), data=new.d.sim)
+  z.d.lmm <- glmer(RUGR ~ MEAN_WIND + (1 | ROUTE), family = "binomial", data=new.d.sim, control=glmerControl(calc.derivs=FALSE))
+  
+  reject$w.lm[i] <- summary(z.w.lm)$coef[2,4]	
+  reject$w.glm[i] <- summary(z.w.glm)$coef[2,4]	
+  reject$w.glm.quasi[i] <- summary(z.w.glm.quasi)$coef[2,4]
+  reject$w.glmm[i] <- summary(z.w.glmm)$coef[2,4]
+  
+  reject$d.lm[i] <- summary(z.d.lm)$coef[2,4]
+  reject$d.glm[i] <- summary(z.d.glm)$coef[2,4]
+  reject$d.glm.anova[i] <- summary(z.d.glm.anova)$coef[2,4]
+  reject$d.glmm[i] <- summary(z.d.glmm)$coef[2,5]
+  reject$d.lmm[i] <- summary(z.d.lmm)$coef[2,4]
+}
+# Because the code takes so long to run, I saved it.
+#write.table(reject, file="Results_for_Fig_2.9.csv", sep=",", row.names=F)
+
+# Route-level methods
+r <- (reject$w.lm < 0.05)
+w.lm <- aggregate(r, by = list(reject$b1.true), FUN = mean)
+names(w.lm) <- c("b1", "rejected")
+
+r <- (reject$w.glm < 0.05)
+w.glm <- aggregate(r, by = list(reject$b1.true), FUN = mean)
+names(w.glm) <- c("b1", "rejected")
+
+r <- (reject$w.glm.quasi < 0.05)
+w.glm.quasi <- aggregate(r, by = list(reject$b1.true), FUN = mean)
+names(w.glm.quasi) <- c("b1", "rejected")
+
+r <- (reject$w.glmm < 0.05)
+w.glmm <- aggregate(r, by = list(reject$b1.true), FUN = mean)
+names(w.glmm) <- c("b1", "rejected")
+
+# Fig. 2.9
+par(mfrow=c(1,2))
+plot(rejected ~ b1, data=w.lm, typ="l", main="Aggregated data", ylab="Fraction rejected", ylim=c(0, 1))
+lines(rejected ~ b1, data=w.glm, col="blue")
+lines(rejected ~ b1, data=w.glm.quasi, col="green")
+lines(rejected ~ b1, data=w.glmm, col="red")
+lines(c(-10,0), c(.05,.05), lty=2)
+legend(-.25,1,legend=c("LM", "GLM", "GLM.quasi", "GLMM"), col=c("black","blue","green","red"), lty=1)
+
+# Station-level methods
+r <- (reject$d.lm < 0.05)
+d.lm <- aggregate(r, by = list(reject$b1.true), FUN = mean)
+names(d.lm) <- c("b1", "rejected")
+
+r <- (reject$d.glm < 0.05)
+d.glm <- aggregate(r, by = list(reject$b1.true), FUN = mean)
+names(d.glm) <- c("b1", "rejected")
+
+r <- (reject$d.glm.anova < 0.05)
+d.glm.anova <- aggregate(r, by = list(reject$b1.true), FUN = mean)
+names(d.glm.anova) <- c("b1", "rejected")
+
+r <- (reject$d.glmm < 0.05)
+d.glmm <- aggregate(r, by = list(reject$b1.true), FUN = mean)
+names(d.glmm) <- c("b1", "rejected")
+
+r <- (reject$d.lmm < 0.05)
+d.lmm <- aggregate(r, by = list(reject$b1.true), FUN = mean)
+names(d.lmm) <- c("b1", "rejected")
+
+plot(rejected ~ b1, data=d.lm, typ="l", main="Hierarchical data", ylab="Fraction rejected", ylim=c(0, 1))
+lines(rejected ~ b1, data=d.glm, col="blue")
+lines(rejected ~ b1, data=d.glm.anova, col="turquoise")
+lines(rejected ~ b1, data=d.glmm, col="red")
+lines(rejected ~ b1, data=d.lmm, col="orange")
+lines(c(-10,0), c(.05,.05), lty=2)
+legend(-.25,1,legend=c("LM", "GLM", "GLM.anova", "GLMM", "LMM"), col=c("black","blue","turquoise","red","orange"), lty=1)
+
+#Why are we not rejecting anything? 
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# 2.7.3 Do hierarchical methods have more power?
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#Yes - but not because they have more points, rather they have more information contained within the methods
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #################################################################
 # Packages
 #################################################################
@@ -765,7 +995,4 @@ lines(rejected ~ b1, data=d.lmm, col="orange")
 lines(c(-10,0), c(.05,.05), lty=2)
 legend(-.25,1,legend=c("LM", "GLM", "GLM.anova", "GLMM", "LMM"), col=c("black","blue","turquoise","red","orange"), lty=1)
 
-######
-# 2.7.3 Do hierarchical methods have more power?
 
-# Question 6: I'll leave this question, and the generation of figure 2.10, for you to try.
