@@ -135,6 +135,115 @@ lines(.1*(1:100), dchisq(.1*(1:100), df=1), col="blue")
 
 # You can then extract the P-value for x1 with mod.logistf$prob[2].
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
+library(logistf)
+
+# Compute the rejection rates for the methods except the parametric bootstrap of b1 (which is done in the following code). Note that you will need to calculate the distribution of LLR for bootstrap of H0 using the code at the top of section "2.6 P-values for binary data" above.
+n <- 30
+b0 <- 1
+b1 <- 0
+b2 <- 1.5
+var.x <- 1
+cov.x <- 0
+b1.list <- c(0, .2, .4, .6, .8, 1)
+nsims <- 1000
+
+reject <- data.frame(b1=b1.list, glm.Wald=NA, glm.Wald.con=NA, glm.LRT=NA, glm.boot0=NA, glm.boot0.con=NA, lm=NA, glm.con=NA, logistf=NA)
+i.b1 <- 0
+for(b1 in b1.list){
+  i.b1 <- i.b1 + 1
+  Pvalues <- data.frame(glm.Wald=array(NA,dim=nsims), glm.con=NA, glm.LRT=NA, glm.boot0=NA, lm=NA, logistf=NA)
+  for(i in 1:nsims){
+    x <- rmvnorm(n, sigma = matrix(c(var.x, cov.x, cov.x, var.x), nrow=2))
+    x1 <- x[,1]
+    x2 <- x[,2]
+    Y <- rbinom(n=n, size=1, prob=inv.logit(b0 + b1*x1 + b2*x2))
+    
+    mod.glm <- glm(Y ~ x1 + x2, family = binomial)
+    mod.glm0 <- glm(Y ~ x2, family = binomial)
+    mod.lm <- lm(Y ~ x1 + x2)
+    mod.logistf <- logistf(Y ~ x1 + x2)
+    
+    Pvalues$glm.Wald[i] <- summary(mod.glm)$coef[2,4]
+    Pvalues$glm.LRT[i] <- pchisq(2*(logLik(mod.glm) - logLik(mod.glm0)), df=1, lower.tail=F)
+    Pvalues$glm.deviance[i] <- 2*(logLik(mod.glm) - logLik(mod.glm0))
+    Pvalues$lm[i] <- summary(mod.lm)$coef[2,4]
+    
+    Pvalues$glm.con[i] <- mod.glm$converge
+    Pvalues$logistf[i] <-mod.logistf$prob[2]
+  }
+  reject$glm.Wald[i.b1] <- mean(Pvalues$glm.Wald < 0.05)
+  reject$lm[i.b1] <- mean(Pvalues$lm < 0.05)
+  reject$glm.Wald.con[i.b1] <- mean(Pvalues$glm.Wald[Pvalues$glm.con==T] < 0.05)
+  reject$glm.LRT[i.b1] <- mean(Pvalues$glm.LRT < 0.05)
+  reject$glm.boot0[i.b1] <- mean(Pvalues$glm.deviance > LLR.crit[LLR.crit$n == n,3])
+  reject$glm.boot0.con[i.b1] <- mean(Pvalues$glm.deviance[Pvalues$glm.con==T] > LLR.crit[LLR.crit$n == n,3])
+  reject$glm.con[i.b1] <- mean(Pvalues$glm.con)
+  reject$logistf[i.b1] <- mean(Pvalues$logistf < 0.05)
+  show(reject[i.b1,])
+}
+round(reject, digits=3)
+# b1 glm.Wald glm.Wald.con glm.LRT glm.boot0 glm.boot0.con     lm glm.con
+# 1 0.0   0.0228   0.02290997  0.0755    0.0536    0.05144695 0.0505  0.9952
+# 2 0.2   0.0389   0.03912694  0.1001    0.0734    0.07071012 0.0723  0.9942
+# 3 0.4   0.0715   0.07190989  0.1620    0.1238    0.12038620 0.1244  0.9943
+# 4 0.6   0.1406   0.14160540  0.2748    0.2236    0.21945815 0.2234  0.9929
+# 5 0.8   0.2431   0.24478904  0.4064    0.3407    0.33732756 0.3427  0.9931
+# 6 1.0   0.3526   0.35576632  0.5500    0.4819    0.47845828 0.4820  0.9911
+
+# Parametric bootstrap of b1. Note that this takes a lot of time to run.
+#nsims <- 50
+#nboot <- 20
+
+#reject.boot <- data.frame(b1=b1.list, glm.boot=NA)
+#i.b1 <- 0
+#for(b1 in b1.list){
+#  i.b1 <- i.b1 + 1
+#  Pvalues <- data.frame(glm.boot=rep(NA, nsims))
+#  for(i in 1:nsims){
+#    x <- rmvnorm(n, sigma = matrix(c(var.x, cov.x, cov.x, var.x), nrow=2))
+#    x1 <- x[,1]
+#    x2 <- x[,2]
+#    Y <- rbinom(n=n, size=1, prob=inv.logit(b0 + b1*x1 + b2*x2))
+#    dat <- data.frame(x1=x1, x2=x2, Y=Y)
+#    
+#    mod.real <- glm(Y ~ x1 + x2, family = binomial, dat)
+    # Parametric bootstrap
+#    estimate <- data.frame(b1=array(NA,dim=nboot))
+#    dat.boot <- dat
+#    for(j in 1:nboot){
+#      dat.boot$Y <- simulate(mod.real)[[1]]
+#      mod.boot <- glm(Y ~ x1 + x2, family = binomial, data=dat.boot)
+#      if(mod.boot$converge == T) estimate$b1[j] <- mod.boot$coef[2]
+#    }
+#    Pvalues$glm.boot[i] <- 2*min(mean(estimate$b1 < 0, na.rm=T), mean(estimate$b1 > 0, na.rm=T))
+#  }
+#  reject.boot$glm.boot[i.b1] <- mean(Pvalues$glm.boot < 0.05, na.rm=T)
+#  show(reject.boot[i.b1,])
+#}
+# b1  glm.boot
+# 1 0.0 0.1022044
+# 2 0.2 0.1064257
+# 3 0.4 0.1943888
+# 4 0.6 0.2897384
+# 5 0.8 0.4567404
+# 6 1.0 0.5688259
+
+#reject$glm.boot <- reject.boot$glm.boot
+# Because the code takes so long to run, I saved it.
+#write.table(reject, file="Results_for_Fig_2.8.csv", sep=",", row.names=F)
+
+# Fig. 2.8
+par(mfrow=c(1,1))
+plot(glm.Wald ~ b1, data=reject, typ="l", xlab="b1", ylab="Fraction rejected", ylim=c(0,.6), col="green")
+lines(glm.LRT ~ b1, data=reject, col="red")
+lines(glm.boot0 ~ b1, data=reject, col="black")
+lines(lm ~ b1, data=reject, col="blue")
+#lines(glm.boot ~ b1, data=reject, col="orange")
+lines(logistf ~ b1, data=reject, col="purple")
+lines(c(-.1,1.1), c(.05, .05), lty=2)
+legend(0,.6,legend=c("Wald", "LRT", "Boot(b1)", "Boot(H0)", "LM", "logistf"), col=c("green","red","orange","black", "blue", "purple"), lty=1)
+
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 6. As an exercise, produce figure 2.10 showing the power curves for the grouse data assuming that the station-level values of WIND are given by MEAN_WIND for all stations within the same route. This can be done easily by modifying the code provided for making figure 2.9.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
