@@ -1,6 +1,9 @@
 # Angelica, Biz, Quinn
 # PS4
 # due 17 October, 2023 by midnight
+
+####PS4 Code####
+
 library(lme4)
 library(lmerTest)
 # The mvtnorm package has a function for randomly simulating from a multivariate normal distribution.
@@ -11,8 +14,13 @@ library(mvtnorm)
 
 # 1. What questions do you have about the material in chapter 2? What needs more explanation? I'm serious about asking this question, because I want to improve the book. (NOTE: This requires NO NEW R CODE.)
 
+#When running simulations with lower numbers to conserve time, what is going on on when we answer question 6 - where at b1=-0.3 we see a localized minimum but the fraction rejected jumps back up afterwards? 
+
 # 2. As discussed in subsection 2.6.5, the LM should give good type I errors even when applied to binary data, provided the residuals are homoscedastic. This will be true for the simplest case of only a single predictor (independent) variable, because under the null hypothesis H0:b1 = 0, the residuals will be homoscedastic (since the predicted values for all points are the same). However, if there is a second predictor variable that is correlated to the first, then under the null hypothesis H0:b1 = 0 the residuals will not be homoscedastic. This could generate incorrect type I errors for the LM. In the simulations of binary data, this didn't seem to cause problems with type I error for the LM (section 2.6). For this exercise, investigate this problem for binomial data with more than two (i.e., 0/1) outcomes by computing the rate at which the null hypothesis H0:b1=0 is rejected in simulated data under the null hypothesis, exploring the case when there is a second independent variable x2 that is highly correlated with x1. You can modify the code from section 2.6 for this.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~
+inv.logit <- function(x){
+  1/(1 + exp(-x))
+}
 n <- 1000
 b0 <- 2
 b1 <- 0
@@ -80,6 +88,18 @@ round(reject, digits=3)
 mod.dat <- lm(Y ~ x1 + x2, data=dat)
 mod.reduced <- lm(Y ~ x2, data=dat)
 dev.dat <- 2*(logLik(mod.dat) - logLik(mod.reduced))[1]
+nboot <- 200
+
+#small n boot to not take up lots of time 
+
+boot <- data.frame(b1=array(NA, dim=nboot), converge=NA)
+dat.boot <- dat
+for(i in 1:nboot){
+  dat.boot$Y <- simulate(mod.dat)[[1]]
+  mod.boot <- lm(Y ~ x1 + x2, data=dat.boot)
+  boot$b1[i] <- mod.boot$coef[2]
+}
+
 
 # Simulate the data using the reduced model.
 boot0 <- data.frame(LLR=rep(NA, nboot), converge=NA)
@@ -116,6 +136,8 @@ hist(boot$b1, xlab="Bootstrap of b1", main = paste("b1 = ", round(mod.dat$coef[2
 hist(boot0$dev, xlab="Bootstrap of deviance", main = paste("Deviance = ", round(dev.dat,2), sep=''), freq=F, breaks=40)
 #lines(c(dev.dat,dev.dat), c(0,1), col="red")
 lines(.1*(1:100), dchisq(.1*(1:100), df=1), col="blue")
+
+#Looks alright on both accounts, should the right hand chi squared distribution have more of a pronounced mean with a higher bootsteap deviance? 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 4. For the bootstrap estimator of b1, the P-value is given by
 
@@ -138,6 +160,17 @@ lines(.1*(1:100), dchisq(.1*(1:100), df=1), col="blue")
 library(logistf)
 
 # Compute the rejection rates for the methods except the parametric bootstrap of b1 (which is done in the following code). Note that you will need to calculate the distribution of LLR for bootstrap of H0 using the code at the top of section "2.6 P-values for binary data" above.
+
+b0 <- 1
+b1 <- 0
+b2 <- 1.5
+var.x <- 1
+cov.x <- 0
+n.list <- c(20,30,50,100)
+nboot <- 10000
+LLR.crit <- data.frame(n=n.list, glm=NA, glm.converge=NA)
+i.n <- 0
+
 n <- 30
 b0 <- 1
 b1 <- 0
@@ -145,7 +178,9 @@ b2 <- 1.5
 var.x <- 1
 cov.x <- 0
 b1.list <- c(0, .2, .4, .6, .8, 1)
-nsims <- 1000
+nsims <- 300
+
+#Small nsims to not take a million years to run
 
 reject <- data.frame(b1=b1.list, glm.Wald=NA, glm.Wald.con=NA, glm.LRT=NA, glm.boot0=NA, glm.boot0.con=NA, lm=NA, glm.con=NA, logistf=NA)
 i.b1 <- 0
@@ -243,10 +278,27 @@ lines(logistf ~ b1, data=reject, col="purple")
 lines(c(-.1,1.1), c(.05, .05), lty=2)
 legend(0,.6,legend=c("Wald", "LRT", "Boot(b1)", "Boot(H0)", "LM", "logistf"), col=c("green","red","orange","black", "blue", "purple"), lty=1)
 
+#Left boots in the legend - but not plotting them here to save time. 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 6. As an exercise, produce figure 2.10 showing the power curves for the grouse data assuming that the station-level values of WIND are given by MEAN_WIND for all stations within the same route. This can be done easily by modifying the code provided for making figure 2.9.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+d <- read.csv(file="grouse_data.csv", header=T)
+
+# STATION and ROUTE were uploaded as integers; this converts them to factors.
+d$STATION <- as.factor(d$STATION)
+d$ROUTE <- as.factor(d$ROUTE)
+
+# Combine all values for each ROUTE.
+w <- data.frame(aggregate(cbind(d$GROUSE, d$WIND, d$LAT, d$LONG), by = list(d$ROUTE), FUN = mean))
+
+# For clarity, I've added the column names.
+names(w) <- c("ROUTE","MEAN_GROUSE","MEAN_WIND","LAT","LONG")
+
+# Finally, I want the count of the number of STATIONS per ROUTE, and the number of GROUSE.
+w$GROUSE <- aggregate(d$GROUSE, by = list(d$ROUTE), FUN = sum)[,2]
+w$STATIONS <- aggregate(array(1, c(nrow(d), 1)), by = list(d$ROUTE), FUN = sum)[,2]
 b0 <- -1.0632
 b1 <- -0.4064
 sd.route <- 1.072
@@ -256,9 +308,24 @@ b1.list <- -c(0, .1, .2, .3, .4, .5)
 d.sim <- d
 w.sim <- w
 
-nsims <- 2000
+nsims <- 20
 reject <- data.frame(b1.true=array(0, dim=nsims*length(b1.list)), w.lm=NA, w.glm=NA, w.glm.quasi=NA, w.glmm=NA, d.lm=NA, d.glm=NA, d.glm.anova=NA, d.lmm=NA, d.glmm=NA)
 
+simulate.d.glmm <- function (d, b0, b1, sd) {
+  # This is the inverse logit function
+  inv.logit <- function(x){
+    1/(1 + exp(-x))
+  }
+  d.sim.Y <- array(-1, dim=dim(d)[1])
+  for(i in levels(d$ROUTE)){
+    dd <- d[d$ROUTE == i,]
+    nn <- dim(dd)[1]
+    Z <- b0 + b1*dd$WIND + rnorm(n=1, mean=0, sd=sd)
+    p <- inv.logit(Z)
+    d.sim.Y[d$ROUTE == i] <- rbinom(n=nn, size=1, prob=p)
+  }
+  return(d.sim.Y)
+}
 # I set these simulations up a little differently from those in section 2.6. Rather than computing the rejection rate for each b1, here I have kept all of the P-values for all of the simulations and used the aggregate() function to extract P-values from the entire table.
 
 #Get mean_wind values into d.sim 
@@ -270,7 +337,9 @@ mean_wind <- d.sim %>%
   summarise(MEAN_WIND = mean(WIND, na.rm = TRUE))
 
 new.d.sim<- left_join(d.sim, mean_wind, by="ROUTE")
+new.d.sim<- left_join(d.sim, mean_wind, by="ROUTE")
 
+#I am wholly unsure why, but to get RUGR into the new.d.sim data you need to select the above code and run it again
 
 i <- 0
 for(b1 in b1.list) for(j in 1:nsims){
@@ -361,7 +430,7 @@ lines(rejected ~ b1, data=d.lmm, col="orange")
 lines(c(-10,0), c(.05,.05), lty=2)
 legend(-.25,1,legend=c("LM", "GLM", "GLM.anova", "GLMM", "LMM"), col=c("black","blue","turquoise","red","orange"), lty=1)
 
-#Why are we not rejecting anything? 
+#Why are we not rejecting anything for hierarchical data?
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -369,6 +438,9 @@ legend(-.25,1,legend=c("LM", "GLM", "GLM.anova", "GLMM", "LMM"), col=c("black","
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #Yes - but not because they have more points, rather they have more information contained within the methods
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+####Tony's Code####
+
 #################################################################
 # Packages
 #################################################################
@@ -1011,7 +1083,7 @@ b1.list <- -c(0, .1, .2, .3, .4, .5)
 d.sim <- d
 w.sim <- w
 
-nsims <- 2000
+nsims <- 20
 reject <- data.frame(b1.true=array(0, dim=nsims*length(b1.list)), w.lm=NA, w.glm=NA, w.glm.quasi=NA, w.glmm=NA, d.lm=NA, d.glm=NA, d.glm.anova=NA, d.lmm=NA, d.glmm=NA)
 
 # I set these simulations up a little differently from those in section 2.6. Rather than computing the rejection rate for each b1, here I have kept all of the P-values for all of the simulations and used the aggregate() function to extract P-values from the entire table.
