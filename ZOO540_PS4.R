@@ -3,7 +3,7 @@
 # due 17 October, 2023 by midnight
 
 ####PS4 Code####
-
+#set.seed(8675309)
 library(lme4)
 library(lmerTest)
 # The mvtnorm package has a function for randomly simulating from a multivariate normal distribution.
@@ -14,7 +14,7 @@ library(mvtnorm)
 
 # 1. What questions do you have about the material in chapter 2? What needs more explanation? I'm serious about asking this question, because I want to improve the book. (NOTE: This requires NO NEW R CODE.)
 
-#When running simulations with lower numbers to conserve time, what is going on on when we answer question 6 - where at b1=-0.3 we see a localized minimum but the fraction rejected jumps back up afterwards? 
+#When running simulations with lower numbers to conserve time, what is going on on when we answer question 6 - where at b1=-0.3 we see a localized minimum but the fraction rejected jumps back up afterwards? Is this just an influence of small nsims?
 
 # 2. As discussed in subsection 2.6.5, the LM should give good type I errors even when applied to binary data, provided the residuals are homoscedastic. This will be true for the simplest case of only a single predictor (independent) variable, because under the null hypothesis H0:b1 = 0, the residuals will be homoscedastic (since the predicted values for all points are the same). However, if there is a second predictor variable that is correlated to the first, then under the null hypothesis H0:b1 = 0 the residuals will not be homoscedastic. This could generate incorrect type I errors for the LM. In the simulations of binary data, this didn't seem to cause problems with type I error for the LM (section 2.6). For this exercise, investigate this problem for binomial data with more than two (i.e., 0/1) outcomes by computing the rate at which the null hypothesis H0:b1=0 is rejected in simulated data under the null hypothesis, exploring the case when there is a second independent variable x2 that is highly correlated with x1. You can modify the code from section 2.6 for this.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -88,7 +88,7 @@ round(reject, digits=3)
 mod.dat <- lm(Y ~ x1 + x2, data=dat)
 mod.reduced <- lm(Y ~ x2, data=dat)
 dev.dat <- 2*(logLik(mod.dat) - logLik(mod.reduced))[1]
-nboot <- 200
+nboot <- 400
 
 #small n boot to not take up lots of time 
 
@@ -137,7 +137,7 @@ hist(boot0$dev, xlab="Bootstrap of deviance", main = paste("Deviance = ", round(
 #lines(c(dev.dat,dev.dat), c(0,1), col="red")
 lines(.1*(1:100), dchisq(.1*(1:100), df=1), col="blue")
 
-#Looks alright on both accounts, should the right hand chi squared distribution have more of a pronounced mean with a higher bootsteap deviance? 
+#Looks alright on both accounts, should the right hand chi squared distribution have more of a pronounced mean with a higher bootstrap deviance? 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 4. For the bootstrap estimator of b1, the P-value is given by
 
@@ -204,7 +204,7 @@ for(b1 in b1.list){
     Pvalues$lm[i] <- summary(mod.lm)$coef[2,4]
     
     Pvalues$glm.con[i] <- mod.glm$converge
-    Pvalues$logistf[i] <-mod.logistf$prob[2]
+    Pvalues$logistf[i] <- mod.logistf$prob[2]
   }
   reject$glm.Wald[i.b1] <- mean(Pvalues$glm.Wald < 0.05)
   reject$lm[i.b1] <- mean(Pvalues$lm < 0.05)
@@ -337,17 +337,16 @@ mean_wind <- d.sim %>%
   summarise(MEAN_WIND = mean(WIND, na.rm = TRUE))
 
 new.d.sim<- left_join(d.sim, mean_wind, by="ROUTE")
-new.d.sim<- left_join(d.sim, mean_wind, by="ROUTE")
 
-#I am wholly unsure why, but to get RUGR into the new.d.sim data you need to select the above code and run it again
+#I am wholly unsure why, but to get RUGR into the new.d.sim data you need to select the above code and run it again after running the next block of code
 
 i <- 0
 for(b1 in b1.list) for(j in 1:nsims){
   i <- i + 1
   reject$b1.true[i] <- b1
   
-  d.sim$RUGR <- simulate.d.glmm(d = d, sd = sd.route, b0 = b0, b1 = b1)
-  w.sim$RUGR <- aggregate(d.sim$RUGR, by = list(d.sim$ROUTE), FUN = sum)[,2]
+  new.d.sim$RUGR <- simulate.d.glmm(d = d, sd = sd.route, b0 = b0, b1 = b1)
+  w.sim$RUGR <- aggregate(new.d.sim$RUGR, by = list(new.d.sim$ROUTE), FUN = sum)[,2]
   w.sim$SUCCESS <- cbind(w.sim$RUGR, w.sim$STATIONS - w.sim$RUGR)
   
   z.w.lm <- lm(RUGR ~ MEAN_WIND, data=w.sim)
@@ -372,6 +371,8 @@ for(b1 in b1.list) for(j in 1:nsims){
   reject$d.glmm[i] <- summary(z.d.glmm)$coef[2,5]
   reject$d.lmm[i] <- summary(z.d.lmm)$coef[2,4]
 }
+
+
 # Because the code takes so long to run, I saved it.
 #write.table(reject, file="Results_for_Fig_2.9.csv", sep=",", row.names=F)
 
@@ -430,7 +431,6 @@ lines(rejected ~ b1, data=d.lmm, col="orange")
 lines(c(-10,0), c(.05,.05), lty=2)
 legend(-.25,1,legend=c("LM", "GLM", "GLM.anova", "GLMM", "LMM"), col=c("black","blue","turquoise","red","orange"), lty=1)
 
-#Why are we not rejecting anything for hierarchical data?
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
