@@ -338,8 +338,6 @@ mean_wind <- d.sim %>%
 
 new.d.sim<- left_join(d.sim, mean_wind, by="ROUTE")
 
-#I am wholly unsure why, but to get RUGR into the new.d.sim data you need to select the above code and run it again after running the next block of code
-
 i <- 0
 for(b1 in b1.list) for(j in 1:nsims){
   i <- i + 1
