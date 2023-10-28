@@ -1,5 +1,5 @@
 # Zoology/Entomology 540: Problem Set 5
-
+#Michelle, Quinn, Timone
 # Due 24 October (midnight)
 
 # For the homework, ONLY TURN IN THE R CODE THAT YOU USED. Start with the code from correlated_data which is pasted below. You can then add your code, remove any of the code below that you don't need for the homework questions, and save it to a separate file.
@@ -8,9 +8,180 @@
 
 # 2. Construct the right panel of figure 3.8 giving power curves for the detection of phylogenetic signal in simulated data using an OU transform. You can modify the code I provided for the left panel which simulates data using Pagel's λ transform which is below labeled "Fig. 3.8 left panel".
 
+# 3.5.6 Type I errors and power for tests of phylogenetic signal
+
+# For the parametric bootstrap of the LRT under H0, it is necessary to generate the critical values of the LLR. These are placed in LLR.crit.
+# Note that these bootstraps to get the critical values of LLR.lam and LLR.OU are performed for the same phylogenetic tree as used for the power simulations later. This is because the critical LLR.lam and LLR.OU could depend on the topology of the phylogeny.
+n <- 30
+lam <- 0
+alpha <- 50
+nboot <- 20
+
+phy <- compute.brlen(rtree(n=n), method = "Grafen", power = 1)
+#phy.lam <- transf.branch.lengths(phy=phy, model="lambda", parameters=list(lambda = lam))$tree
+phy.ou <- transf.branch.lengths(phy=phy, model="OUfixedRoot", parameters=list(alpha=alpha))$tree
+
+boot0 <- data.frame(LLR.lam=rep(NA, nboot), LLR.OU=NA)
+for(i in 1:nboot){
+  Y.sim <- rTraitCont(phy.ou, model = "BM", sigma = 1)
+  
+  z.lam.sim <- phylolm(Y.sim ~ 1, phy=phy, model = "lambda")
+  z.OU.sim <- phylolm(Y.sim ~ 1, phy=phy, model = "OUfixedRoot")
+  z.0.sim <- lm(Y.sim ~ 1)
+  
+  boot0$LLR.lam[i] <- 2*(z.lam.sim$logLik - logLik(z.0.sim))
+  boot0$LLR.OU[i] <- 2*(z.OU.sim$logLik - logLik(z.0.sim))
+}
+LLR.lam.crit <- sort(boot0$LLR.lam)[floor(0.95 * nboot)]
+LLR.OU.crit <- sort(boot0$LLR.OU)[floor(0.95 * nboot)]
+
+# This plots the bootstrap distributions of LLR for Pagel's lambda and the OU transform.
+par(mfrow=c(2,1))
+hist(boot0$LLR.lam)
+lines(.1*(1:100), nboot*dchisq(.1*(1:100), df=1), col="blue")
+hist(boot0$LLR.OU)
+lines(.1*(1:100), nboot*dchisq(.1*(1:100), df=1), col="blue")
+
+# Compute the rejection rates for the 5 methods.
+# Note that the same starter phylogeny is used for the simulations, since the critical values of lam and alpha used in the bootstraps around H0 could depend on the topology.
+lam.list <- c(0, .2, .4, .6, .8, 1)
+nsims <- 20
+
+reject <- data.frame(lam=rep(NA, nsims*length(lam.list)), lam.LRT=NA, OU.LRT=NA, lam.boot0=NA, OU.boot0=NA, K.perm=NA)
+counter <- 0
+for(lam in lam.list){
+  phy.ou <- transf.branch.lengths(phy=phy, model="lambda", parameters=list(lambda = lam))$tree
+  for(i in 1:nsims){
+    counter <- counter + 1
+    reject$lam[counter] <- lam	
+    Y.sim <- rTraitCont(phy.ou, model = "BM", sigma = 1)
+    
+    # LRTs
+    z.lam.sim <- phylolm(Y.sim ~ 1, phy=phy, model = "lambda")
+    z.OU.sim <- phylolm(Y.sim ~ 1, phy=phy, model = "OUfixedRoot")
+    z.0.sim <- lm(Y.sim ~ 1)
+    LLR.lam <- 2*(z.lam.sim$logLik - logLik(z.0.sim)[1])
+    LLR.OU <- 2*(z.OU.sim$logLik - logLik(z.0.sim)[1])
+    reject$lam.LRT[counter] <- (pchisq(LLR.lam, df=1, lower.tail=F) < 0.05)
+    reject$OU.LRT[counter] <- (pchisq(LLR.OU, df=1, lower.tail=F) < 0.05)
+    
+    # Bootstraps around H0
+    reject$lam.boot0[counter] <- (LLR.lam > LLR.lam.crit)
+    reject$OU.boot0[counter] <- (LLR.OU > LLR.OU.crit)
+    
+    # Permutation test with Blomberg's K
+    z.phylosig.K <- phylosig(Y.sim, tree=phy, method="K", test=TRUE, nsim=2000)
+    reject$K.perm[counter] <- (z.phylosig.K$P < 0.05)
+  }
+}
+
+
+#Create power curves
+power <- aggregate(reject[,c("lam.LRT","OU.LRT","lam.boot0","OU.boot0","K.perm")], by = list(reject$lam), FUN = mean)
+names(power)[1] <- "lam"
+
+# Fig. 3.8, left panel. I've left the right panel as an exercise.
+par(mfrow=c(1,2))
+plot(lam.LRT ~ lam, data=power, typ="l", xlim=c(0,1), ylim=c(0, 1), xlab=expression(paste("Phylogenetic signal (", lambda, ")")), ylab="Fraction rejected")
+lines(OU.LRT ~ lam, data=power, col=2)
+lines(lam.boot0 ~ lam, data=power, col=3)
+lines(OU.boot0 ~ lam, data=power, col=4)
+lines(K.perm ~ lam, data=power, col=5)
+
+lines(c(0,10), c(.05,.05), lty=2)
+legend(.0,1,c("lam.LRT","OU.LRT", "lam.boot(H0)", "OU.boot(H0)", "K.perm"), col=1:5, lty=1)
+
 # 3. The parametric bootstrap of H0 for phylogenetic signal (subsection 3.5.3) uses the log likelihood ratio (LLR) as the test statistic. It is also possible to use the phylogenetic signal parameter (λ or α) as the test statistic. This would involve the following: (i) Fit the model to the data and calculate the value of the phylogenetic signal parameter (λ or α). (ii) Refit the model with no phylogenetic signal and use the resulting parameter values to simulate a large number of datasets. (iii) Refit the model including the phylogenetic signal parameter (λ or α) for each dataset and collect these values. (iv) The resulting distribution of λ or α estimated from the simulated datasets approximates the distribution of the estimator of λ or α, allowing P-values to be calculated. Perform this bootstrap and compare the results to the bootstrap of H0 using the LLR.
 
+# Use lm() to fit the null model (species are independent).
+z.0 <- lm(Y ~ 1)
+
+# Perform the bootstrap using the parameters estimated under H0. The function simulate() is applied to the model z.0. The simulated datasets are fit with both Pagel's lambda and the OU transform.
+nboot <- 20
+Y.sim <- Y
+boot <- data.frame(LLR.lam=rep(NA,nboot), LLR.OU=NA)
+for(i in 1:nboot){
+  Y.sim <- simulate(z.0)[[1]]
+  names(Y.sim) <- names(Y)
+  z.lam.sim <- phylolm(Y.sim ~ 1, phy=phy, model = "lambda")
+  z.OU.sim <- phylolm(Y.sim ~ 1, phy=phy, model = "OUfixedRoot")
+  z.0.sim <- lm(Y.sim ~ 1)
+  boot$LLR.lam[i] <- 2*(z.lam.sim$logLik - logLik(z.0.sim))
+  boot$LLR.OU[i] <- 2*(z.OU.sim$logLik - logLik(z.0.sim))
+}
+
+P.boot.LLR.lam <- mean(boot$LLR.lam > LLR.lam)
+P.boot.LLR.OU <- mean(boot$LLR.OU > LLR.OU)
+c(P.boot.LLR.lam, P.boot.LLR.OU)
+
+# Due to numerical issues, sometimes phylolm doesn't converge and gives negative LLR. When this happens, I set the LLR to zero.
+boot$LLR.lam[boot$LLR.lam < 0] <- 0
+boot$LLR.OU[boot$LLR.OU < 0] <- 0
+
+# Fig 3.6
+par(mfrow=c(1,2), mai=c(1,1,.4,.4))
+hist(boot$LLR.lam, main=expression(paste("Pagel's ", lambda, " boot(H0)")), xlab="LLR", ylim=c(0,100), cex.main=1.5)
+lines(LLR.lam * c(1,1), c(0,nboot), col="red")
+lines(.1*(1:20), nboot*dchisq(.1*(1:100), df=1), col="blue")
+text(5,800,paste("P =", round(P.boot.LLR.lam, digits=3)), cex=1.5)
+
+hist(boot$LLR.OU, main=expression("OU boot(H0)"), xlab="LLR", ylim=c(0,20), cex.main=1.5)
+lines(LLR.OU * c(1,1), c(0,nboot), col="red")
+lines(.1*(1:100), nboot*dchisq(.1*(1:100), df=1), col="blue")
+text(8,800,paste("P =", round(P.boot.LLR.OU, digits=3)), cex=1.5)           
+
 # 4. When investigating mixed models (chapters 1 and 2), we focused on testing hypotheses concerning the fixed effects (the slope). Knowing what you know about testing for phylogenetic signal (sections 3.4 and 3.5), what methods could you use to test hypotheses regarding the random effects in a mixed model? You don't need to do this in R: I'm only asking for ideas. But you will impress me if you can take the models from chapter 1 and perform a test of a null hypothesis concerning a random effect. 
+
+#Within the mixed model, you can use Likelihood ratio tests and Wald tests to test hypotheses regarding the random effects. You can also specify that there is no interaction term in your simulations and compare the two using anova(). 
+
+#Stuff from CRAN - attempt at looking at random effects 
+library(pez)
+library(ape)
+
+nspp <- 15
+nsite <- 10
+env <- 1:nsite
+env <- as.numeric(scale(env))
+
+phy <- rcoal(n = nspp)
+Vphy <- vcv(phy)
+Vphy <- Vphy/(det(Vphy)^(1/nspp))
+
+iD <- t(chol(Vphy))
+intercept <- iD %*% rnorm(nspp)
+slope <- iD %*% rnorm(nspp)
+
+prob <- rep(intercept, each = nsite)
+prob <- prob + rep(slope, each = nsite) *
+  rep(env, nspp)
+prob <- prob + rnorm(nspp * nsite)
+pres <- rbinom(length(prob), size = 1, prob = exp(prob)/(1 + exp(prob)))
+
+site <- factor(rep(1:nsite, nspp))
+species <- factor(rep(1:nspp, each = nsite))
+env <- rep(env, nspp)
+
+r.intercept.spp.indep <- list(1, sp = species,
+                              covar = diag(nspp))
+r.intercept.spp.phy <- list(1, sp = species,
+                            covar = Vphy)
+r.slope.spp.indep <- list(env, sp = species,
+                          covar = diag(nspp))
+r.slope.spp.phy <- list(env, sp = species,
+                        covar = Vphy)
+r.site <- list(1, site = site, covar = diag(nsite))
+rnd.effects <- list(r.intercept.spp.indep,
+                    r.intercept.spp.phy, r.slope.spp.indep,
+                    r.slope.spp.phy, r.site)
+model <- communityPGLMM(pres ~ env, family = "binomial",
+                        sp = species, site = site, random.effects = rnd.effects,
+                        REML = TRUE, verbose = FALSE)
+
+communityPGLMM.binary.LRT(model, re.number = 1)
+communityPGLMM.binary.LRT(model, re.number = 2)
+
+#Now you can specify the random effect 
+
 
 #################################################################
 # load libraries
@@ -106,7 +277,7 @@ n <- 12
 phy <- compute.brlen(rtree(n=n), method = "Grafen", power = 1)
 phy$tip.label <- 12:1
 
-# This function simulates data according to a given model of evolution (in this case BM). Try running this multiple times to see how much variation there is. Can you (mosdt of the time) see the correlatoins anticipated from the phylogeny?
+# This function simulates data according to a given model of evolution (in this case BM). Try running this multiple times to see how much variation there is. Can you (most of the time) see the correlations anticipated from the phylogeny?
 Y <- rTraitCont(phy, model = "BM", sigma = 1)
 
 # Fig. 3.3
@@ -173,8 +344,8 @@ phy <- compute.brlen(rtree(n=n), method = "Grafen", power = 1)
 
 # Simulate data with Pagel's lambda.
 lam <- .5
-phy.lam <- transf.branch.lengths(phy=phy, model="lambda", parameters=list(lambda = lam))$tree
-Y <- rTraitCont(phy.lam, model = "BM", sigma = 1)
+phy.ou <- transf.branch.lengths(phy=phy, model="lambda", parameters=list(lambda = lam))$tree
+Y <- rTraitCont(phy.ou, model = "BM", sigma = 1)
 
 # Fit the data with both Pagel's lambda and the OU transform.
 summary(phylolm(Y ~ 1, phy=phy, model = "lambda"))
@@ -196,8 +367,8 @@ lam <- .5
 sim <- data.frame(LL.lambda=rep(NA, nsim), LL.OU=NA)
 for(i in 1:nsim){
   phy <- compute.brlen(rtree(n=n), method = "Grafen", power = 1)
-  phy.lam <- transf.branch.lengths(phy=phy, model="lambda", parameters=list(lambda = lam))$tree
-  Y <- rTraitCont(phy.lam, model = "BM", sigma = 1)
+  phy.ou <- transf.branch.lengths(phy=phy, model="lambda", parameters=list(lambda = lam))$tree
+  Y <- rTraitCont(phy.ou, model = "BM", sigma = 1)
   
   sim$LL.lambda[i] <- phylolm(Y ~ 1, phy=phy, model = "lambda")$logLik
   sim$LL.OU[i] <- phylolm(Y ~ 1, phy=phy, model = "OUfixedRoot")$logLik
@@ -230,8 +401,8 @@ phy <- compute.brlen(rtree(n=n), method = "Grafen", power = 1)
 
 # Simulate data with Pagel's lambda transform.
 lam <- .5
-phy.lam <- transf.branch.lengths(phy=phy, model="lambda", parameters=list(lambda = lam))$tree
-Y <- rTraitCont(phy.lam, model = "BM", sigma = 1)
+phy.ou <- transf.branch.lengths(phy=phy, model="lambda", parameters=list(lambda = lam))$tree
+Y <- rTraitCont(phy.ou, model = "BM", sigma = 1)
 # Note that all of the analyses for the subsections from here to subsection 3.5.5 all use this dataset Y. The results will depend on this dataset, so the figures will not be the same as those in the book. You can rerun the last line to give different datasets from the same phylogeny, or rerun the last two lines to get a new dataset from a new phylogeny.
 
 # Estimate phylogenetic signal with Pagel's lambda and the OU transform.
@@ -414,8 +585,8 @@ for(lam in lam.list){
   }
 }
 # This code took a long time to run, so I just saved the output and then reloaded it later. I've commented out these lines though.
-# write.table(reject, file="Phylo signal power curves lam n=30.csv", sep=",", row.names=F)
-# reject <- read.csv(file="Phylo signal power curves lam n=30.csv")
+write.table(reject, file="Phylo signal power curves lam n=30.csv", sep=",", row.names=F)
+reject <- read.csv(file="Phylo signal power curves lam n=30.csv")
 
 #Create power curves
 power <- aggregate(reject[,c("lam.LRT","OU.LRT","lam.boot0","OU.boot0","K.perm")], by = list(reject$lam), FUN = mean)
@@ -542,8 +713,8 @@ for(b1 in b1range) for(i in 1:nsims){
   reject$pgls.boot0[counter] <- (deviance > LLR.crit[LLR.crit$lam.x == lam.x,2])
 }
 # This code took a long time to run, so I just saved the output and then reloaded it later. I've commented out these lines.
-# write.table(reject, file="b1 power curves lam.x=0 n=30.csv", sep=",", row.names=F)
-# reject <- read.csv(file="b1 power curves lam.x=0 n=30.csv")
+write.table(reject, file="b1 power curves lam.x=0 n=30.csv", sep=",", row.names=F)
+reject <- read.csv(file="b1 power curves lam.x=0 n=30.csv")
 
 # Aggregate the data to get the proportion of simulation datasets for which the null hypothesis of b1=0 is rejected.
 reject$pgls <- reject$P.pgls < 0.05
@@ -757,8 +928,8 @@ for(b1 in b1range) for(i in 1:nsims){
 }
 
 # This code took a long time to run, so I just saved the output and then reloaded it later. I've commented out these lines though.
-# write.table(reject, file="tree uncertainty n=100 lam.x=0.csv", sep=",", row.names=F)
-# reject <- read.csv(file="tree uncertainty n=100 lam.x=0.csv")
+ write.table(reject, file="tree uncertainty n=100 lam.x=0.csv", sep=",", row.names=F)
+ reject <- read.csv(file="tree uncertainty n=100 lam.x=0.csv")
 
 # Fig. 3.10
 # Separate panels are produced by changing the number of species (n) and the phylogenetic signal in x (lam.x).
