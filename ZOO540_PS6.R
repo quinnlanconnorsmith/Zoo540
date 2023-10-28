@@ -110,7 +110,7 @@ ggplot(data=d, aes(x = trt, y = seeds, color=trt)) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))
 
-
+#Model selection process
 
 model1 <- lm(seeds~trt, data=d)
 summary(model1)
@@ -122,7 +122,7 @@ plot(model1.5, ask=F)
 
 anova(model1,model2)
 
-#Site has a significant influence on # of seeds
+#Site has a slightly significant influence on # of seeds
 
 model3<- lm(seeds~trt + plant.id, data=d)
 
@@ -189,6 +189,8 @@ var_resid <- as.numeric(var_rep_resid[2])
 
 var_rep/(var_rep + var_resid)
 #Correlation is low between obs (0.19)
+
+#Visualizing the GLMM with random effect of plant.id
 
 sjPlot::plot_model(seed_model_final)
 
