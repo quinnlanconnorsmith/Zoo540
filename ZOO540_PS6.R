@@ -4,6 +4,8 @@ library(lmerTest)
 library(car)
 library(tidyverse)
 library(nlme)
+library(ggiraphExtra)
+library(ggiraph)
 
 # This is a function that analyzes a data.frame called "boot" in which each column contains bootstrap values of coefficients (from simulations). It returns the mean, sd, 95% confidence intervals, and P-value for H0:coefficient = 0. It is assumed that the first row of "boot" gives the base parameter estimates from the real data that were used to simulate the data.
 boot_coef <- function(base, boot) {
@@ -202,3 +204,20 @@ sjPlot::tab_model(seed_model_final,
                   show.re.var= TRUE, 
                   dv.labels= "Effect of Treatments on Seed Count")
 
+seed_pred <- expand.grid(
+  seeds = seq(0,4,1),
+  trt = d$trt, 
+  plant.id = levels(d$plant.id)
+)
+seed_pred
+
+seed_pred$seeds <-predict(seed_model_final, newdata = seed_pred)
+
+#Predictions for each treatment from all the plants - these are not values from the sjplot
+  
+ggplot(data=seed_pred, aes(x = trt, y = seeds)) +
+  geom_boxplot(outlier.size=2, outlier.shape=21)+
+  theme_bw(base_size = 16) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+  
