@@ -97,13 +97,13 @@ d <- d %>%
 
 #So going forward, I'm treating 'noneunbaggedcontrol' as the true control group
 
-ggplot(data=d, aes(x = ash, y = seeds, color=bag)) +
+ggplot(data=d, aes(x = ash, y = seeds)) +
   geom_boxplot(outlier.size=2, outlier.shape=21)+
   theme_bw(base_size = 16) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))
 
-#Bag seems to have some influence on seed count in ashed plants 
+#Ash seems to have some influence on seed count in ashed plants 
 
 
 ggplot(data=d, aes(x = trt, y = seeds, color=trt)) +
@@ -214,6 +214,7 @@ seed_pred
 seed_pred$seeds <-predict(seed_model_final, newdata = seed_pred)
 
 #Predictions for each treatment from all the plants - these are not values from the sjplot
+#might not be as useful because it's tough to predict data from plants that did not receive all the treatments
   
 ggplot(data=seed_pred, aes(x = trt, y = seeds)) +
   geom_boxplot(outlier.size=2, outlier.shape=21)+
@@ -221,3 +222,5 @@ ggplot(data=seed_pred, aes(x = trt, y = seeds)) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))
   
+
+
