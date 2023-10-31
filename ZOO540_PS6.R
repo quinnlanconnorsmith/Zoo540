@@ -1,4 +1,6 @@
-# Packages you might need
+#ZOO 540 PS6 
+#Cassie, Hangkai, Quinn
+# Packages you need
 library(lme4)
 library(lmerTest)
 library(car)
@@ -105,7 +107,6 @@ ggplot(data=d, aes(x = ash, y = seeds)) +
 
 #Ash seems to have some influence on seed count in ashed plants 
 
-
 ggplot(data=d, aes(x = trt, y = seeds, color=trt)) +
   geom_boxplot(outlier.size=2, outlier.shape=21)+
   theme_bw(base_size = 16) +
@@ -119,8 +120,8 @@ summary(model1)
 plot(model1, ask=F)
 
 model2 <- lm(seeds~trt + site.id, data=d)
-summary(model1.5)
-plot(model1.5, ask=F)
+summary(model2)
+plot(model2, ask=F)
 
 anova(model1,model2)
 
@@ -143,8 +144,9 @@ anova(model3,model5)
 
 #So lets stick with model 3
 model3 <- lm(seeds~trt + plant.id, data=d)
-plot(d$site.id, residuals(model3, type='pearson'))
+#plot(d$site.id, residuals(model3, type='pearson'))
 plot(d$plant.id, residuals(model3, type='pearson'))
+abline(h=0)
 #Moving this to an lme random effect and double checking
 
 model6 <- lme(seeds~trt, random= ~1|site.id, method = 'REML', data=d)
@@ -222,5 +224,31 @@ ggplot(data=seed_pred, aes(x = trt, y = seeds)) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))
   
+####Goofin####
+#Just looking at effect of Ash here keeping plant.id as random. If you actually want to do this go back through the model selection! 
 
+seed_ash_model <-lme(seeds~ash, random= ~1|plant.id, method = 'REML', data=d)
+hist(residuals(seed_ash_model))
+seed_ash_residuals <-residuals(seed_ash_model, type='pearson')
+seed_ash_fitted <-fitted.values(seed_ash_model)
+#Checking assumptions 
+plot(seed_ash_fitted,seed_ash_residuals)
+abline(h=0)
+
+#plot(seed_final_residuals~trt, data=d)
+#abline(h=0)
+plot(seed_ash_residuals~plant.id, data=d)
+abline(h=0)
+
+summary(seed_ash_model)
+
+var_rep_resid <- VarCorr(seed_model_final)
+var_rep <- as.numeric(var_rep_resid[1])
+var_resid <- as.numeric(var_rep_resid[2])
+
+var_rep/(var_rep + var_resid)
+
+sjPlot::plot_model(seed_ash_model, 
+                   show.values=TRUE, show.p=TRUE,
+                   title="Effect of Treatments Seed Count")
 
