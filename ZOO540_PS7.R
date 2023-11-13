@@ -138,6 +138,7 @@ d.comp <- d.agg %>%
   mutate(count.diff = count - first(count)) %>%
   mutate(dia.diff = mean.burrow.diameter-first(mean.burrow.diameter))
 
+
 d.comp2 <- d.comp %>%
   arrange(date) %>%
   filter(row_number() > 1)
@@ -403,3 +404,101 @@ dia.pred <- ggplot(data=temp_d, aes(x = mean.temp, y = dia.pred, colour = trt)) 
   theme(text = element_text(size = 13))  
 
 dia.pred
+
+#Goofin - using the day before as a comp 
+
+d.comp_day <- d.agg %>%
+  # Convert the date column to a Date object if it's not already
+  mutate(date = as.Date(date)) %>%
+  # Arrange the data by date, site, and treatment
+  arrange(date, site, trt) %>%
+  # Group by site and treatment
+  group_by(site, trt) %>%
+  # Calculate the difference in counts between each date and the first date
+  mutate(count.diff = count - lag(count)) %>%
+  mutate(dia.diff = mean.burrow.diameter-first(mean.burrow.diameter))
+
+d.comp2_day <- d.comp_day %>%
+  arrange(date) %>%
+  filter(row_number() > 1)
+
+write.csv(d.comp2_day, "d_comp2_day.csv", row.names=FALSE)
+#I need to change the mean.temp NA's to the value from that day and I can't do that in R, so I wrote the .csv and did it manually 
+
+d.comp3_day <- d_comp2_day %>%
+  # Use mutate to replace a specific value in the column
+  mutate(trt = ifelse(trt == "Control", "aControl", trt)) %>%
+  mutate(trt = ifelse(trt == "Marine.Debris", "Marine_debris", trt))
+
+
+cmod15 <- lm(count.diff~site, data=d.comp3_day)
+summary(cmod1)
+plot(cmod1, ask=F)
+#Variance of burrow count comp appears homogeneous among replicates 
+
+cmod16 <- lm(count.diff~site+mean.temp, data=d.comp3_day)
+anova(cmod15, cmod16)
+
+cmod17 <-lm(count.diff~trt + mean.temp + trt*mean.temp, data=d.comp3_day)
+summary(cmod17)
+plot(d.comp3_day$site, residuals(cmod17, type='pearson'))
+
+cmod18 <- lme(count.diff~trt + mean.temp + trt*mean.temp, random= ~1|site, method = 'REML', data=d.comp3_day)
+summary(cmod18)
+plot(cmod18)
+
+gls_cmod18 <- gls(count.diff~trt + mean.temp + trt*mean.temp, data=d.comp3_day)
+anova(gls_cmod18, cmod18)
+
+#No need for random effect with this analysis
+
+
+#Refit model with ML and drop interaction 
+cmod19 <- lm(count.diff~trt + mean.temp + trt*mean.temp, data=d.comp3_day)
+cmod20 <- lm(count.diff~trt + mean.temp, data=d.comp3_day)
+anova(cmod19,cmod20)
+#So the interaction term can be dropped 
+
+cmod19 <- lm(count.diff~trt + mean.temp,data=d.comp3_day)
+cmod19_droptreat <- lm(count.diff~mean.temp, data=d.comp3_day)
+cmod19_droptemp <- lm(count.diff~trt, data=d.comp3_day)
+
+summary(cmod19)
+summary(cmod19_droptreat)
+summary(cmod19_droptemp)
+
+anova(cmod19,cmod19_droptemp)
+anova(cmod19,cmod19_droptreat)
+#So treatment is not significant here when comparing to previous day 
+
+
+#Just the last 3 days 
+d.comp.goof <- d.comp3 %>%
+  arrange(date) %>%
+  filter(row_number() > 80)
+
+count.goof <-lme(count.diff~trt, random= ~1|site, method = 'REML', data=d.comp.goof)
+
+
+sjPlot::plot_model(count.goof, 
+                   axis.labels=c("Rake", "Marine Debris", "Compact"),
+                   show.values=TRUE, show.p=TRUE,
+                   title="Effect of Treatments on Burrow Count")
+
+temp_goof <- expand.grid(
+  mean.temp = seq(10,25,0.1),
+  trt = d.comp.goof$trt, 
+  site = d.comp.goof$site
+)
+temp_goof
+
+temp_goof$count.pred <-predict(count.goof, newdata = temp_goof)
+
+ggplot(data=temp_goof, aes(x = mean.temp, y = count.pred, colour = trt)) +
+  geom_jitter(data=d.comp3, aes(x = mean.temp, y = count.diff, color=trt), width=0.05, alpha=0.5) +
+  geom_line(size=1, alpha=0.5)+
+  geom_hline(yintercept=0, size=1, alpha=0.5) +
+  labs(x="Average Air Temperature (°C)", y= "Burrow Density Compared to First Day") +
+  guides(color=guide_legend(title="Treatment"))+
+  scale_colour_manual(labels = c("Control", "Compact", "Marine Debris", "Rake"), values = c("#999999", "#56B4E9","#009E73", "#D55E00")) +
+  theme(text = element_text(size = 13))  
