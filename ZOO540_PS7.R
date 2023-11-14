@@ -502,3 +502,77 @@ ggplot(data=temp_goof, aes(x = mean.temp, y = count.pred, colour = trt)) +
   guides(color=guide_legend(title="Treatment"))+
   scale_colour_manual(labels = c("Control", "Compact", "Marine Debris", "Rake"), values = c("#999999", "#56B4E9","#009E73", "#D55E00")) +
   theme(text = element_text(size = 13))  
+
+
+#Bootstrap method
+boot_coef <- function(base, boot) {
+  # construct a data.frame to collect information from "boot"; "boot" is given informative row and column names.
+  conf <- data.frame(matrix(NA, nrow = 5, ncol = ncol(boot)))
+  names(conf) <- names(boot)
+  rownames(conf) <-
+    c("mean",
+      "se",
+      "lower95",
+      "upper95",
+      "P-value")
+  
+  for (i.coef in 1:ncol(boot)) {
+    vals <- sort(boot[, i.coef])
+    conf[1, i.coef] <- mean(vals)
+    conf[2, i.coef] <- sd(vals)
+    conf[3, i.coef] <- vals[ceiling(.025 * nrow(boot))]
+    conf[4, i.coef] <- vals[floor(.975 * nrow(boot))]
+    conf[5, i.coef] <- mean(base[i.coef] * vals < 0)
+    
+  }
+  return(t(conf))
+}
+
+
+
+d <-d.agg
+d <- na.omit(d)
+d <- d %>%
+  mutate(trt = case_when(
+    trt == 'Control' ~ 'aControl',
+    TRUE ~ trt  # Keep other treatments unchanged
+  ))
+
+
+mod <- lmer(mean.burrow.diameter~trt + mean.temp + (1|site), data = d)
+summary(mod)
+
+base <- data.frame(matrix(NA, ncol = 4, nrow = 1))
+names(base) <- c("b1", "b2", "b3","b4")
+base$b1[1] <- coef(summary(mod))[2]
+base$b2[1] <- coef(summary(mod))[3]
+base$b3[1] <- coef(summary(mod))[4]
+base$b4[1] <- coef(summary(mod))[5]
+
+
+
+nboot = 1000
+boot <- data.frame(matrix(NA, ncol = 4, nrow =(nboot)))
+names(boot) <- c("b1", "b2", "b3","b4")
+
+for(i in 1:nboot) {
+  dat <- simulate(mod)
+  lmm.mod <- lmer(dat$sim_1~trt + d$mean.temp +  (1|d$site), data = d)
+  boot$b1[i] <- coef(summary(lmm.mod))[2]
+  boot$b2[i] <- coef(summary(lmm.mod))[3]
+  boot$b3[i] <- coef(summary(lmm.mod))[4]
+  boot$b4[i] <- coef(summary(lmm.mod))[5]
+  
+}
+
+boot_coef(base,boot)
+par(mfcol = c(2,2))
+
+hist(boot$b1, main = "bootstrap of effect of compact")
+abline(v = base$b1, col = "red")
+hist(boot$b2, main = "bootstrap of effect of marine debris")
+abline(v = base$b2, col = "red")
+hist(boot$b3, main = "bootstrap of effect of rake ")
+abline(v = base$b3, col = "red")
+hist(boot$b4, main = "bootstrap of effect of temp")
+abline(v = base$b4, col = "red")
