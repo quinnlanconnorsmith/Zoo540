@@ -138,4 +138,4 @@ anova(mod5)
 mod6 <- lmer(Preference ~ RCP + Scenic + MR1.Experience + MR2.Access + MR3.Engagement + RCP*Scenic  + MR1.Experience*MR2.Access*MR3.Engagement +(1|ResponseId), data=d)
 summary(mod6)
 
-#Here's an overfit model that also has an interaction between MR1-MR3. It seems that the interactui between Access and Engagement may be significant
+#Here's an overfit model that also has an interaction between MR1-MR3. It seems that the interaction between Access and Engagement may be significant
