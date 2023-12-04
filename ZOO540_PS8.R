@@ -1,3 +1,4 @@
+#Cassie, Hangkai, Quinn
 # Packages you might need
 library(lme4)
 library(lmerTest)
@@ -139,3 +140,93 @@ mod6 <- lmer(Preference ~ RCP + Scenic + MR1.Experience + MR2.Access + MR3.Engag
 summary(mod6)
 
 #Here's an overfit model that also has an interaction between MR1-MR3. It seems that the interaction between Access and Engagement may be significant
+
+# Another approach, more models 
+## simple linear model - RCP important
+lm1<-lm(Preference ~ RCP, data=d)
+summary(lm1)
+par(mfrow=c(2,2))
+plot(lm1)
+### scenic not as important
+lm2<-lm(Preference ~ Scenic, data=d)
+summary(lm2)
+par(mfrow=c(2,2))
+plot(lm2)
+
+# LMER1
+# mixed model with RCP and Scenic as fixed and response id as random
+# response id .4672 variance
+# AIC 4798.2
+lmer1<-lmer(Preference ~ RCP + Scenic  + (1|ResponseId), REML=FALSE, data=d)
+summary(lmer1)
+par(mfrow=c(1,1))
+plot(lmer1)
+
+# LMER2
+# response id .3468 lower than before when experience is added
+# AIC 4793.5
+lmer2<-lmer(Preference ~ RCP + (1 + MR1.Experience |ResponseId), REML=FALSE, data=d)
+summary(lmer2)
+par(mfrow=c(1,1))
+plot(lmer2)
+
+
+# engagement does not improve model
+lmer3<-lmer(Preference ~ RCP + (1 + MR3.Engagement |ResponseId), REML=FALSE, data=d)
+summary(lmer3)
+par(mfrow=c(1,1))
+plot(lmer3)
+
+# LMER4
+# AIC 4789.2
+# response id .3481 experience .1632
+# interaction of RCP and scenic improves model
+lmer4<-lmer(Preference ~ RCP * Scenic + (1 + MR1.Experience |ResponseId), REML=FALSE, data=d)
+summary(lmer4)
+par(mfrow=c(1,1))
+plot(lmer4)
+
+anova(lmer3, lmer4, test="Chisq")
+
+# LMER5
+lmer5 <- lmer(Preference ~  RCP + Scenic + MR1.Experience*MR2.Access +
+                MR1.Experience*MR3.Engagement + (1|ResponseId), data = d, REML = FALSE)
+summary(lmer3)
+
+anova(lmer1, lmer3, test="Chisq")
+
+#Round 3 - hybrid 
+
+# Transform 'Scenic' into a binary variable and create 'Preference.Simple' for analysis
+d$Scenic <- ifelse(d$Scenic == "N", 0, 1)
+d$Preference.Simple <- ifelse(d$Preference < 0, "Future", ifelse(d$Preference > 0, "Present", "None"))
+
+# Convert columns to factors for analysis
+d$ResponseId <- as.factor(d$ResponseId)
+d$Image.Set <- as.factor(d$Image.Set)
+d$Image <- as.factor(d$Image)
+d$Location <- as.factor(d$Location)
+d$RCP <- as.factor(d$RCP)
+d$Scenic <- as.factor(d$Scenic)
+
+# Exploratory Data Analysis
+# Histograms and aggregate plots to understand data distribution
+hist(d$Preference)
+aggregate(ResponseId ~ Preference, data = d, FUN = length)
+
+# Question 1 Analysis: Do RCP and Scenic Elements affect visitor preference for future landscapes?
+# Mixed model with RCP and Scenic as fixed effects and ResponseId as a random effect
+lmer1 <- lmer(Preference ~ RCP + Scenic + (1|ResponseId), REML=FALSE, data=d)
+summary(lmer1)
+
+# Question 2 Analysis: Do factor scores affect visitor preference?
+# Linear mixed model incorporating MR1, MR2, and MR3 scores as fixed effects
+# ResponseId as a random effect
+mod4 <- lmer(Preference ~ MR1.Experience + MR2.Access + MR3.Engagement + (1|ResponseId), data=d)
+summary(mod4)
+
+# Visualizations to check model diagnostics
+par(mfrow=c(2,2))
+plot(lmer1)
+plot(mod4)
+
